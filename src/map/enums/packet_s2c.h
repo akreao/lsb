@@ -178,11 +178,13 @@ enum class PacketS2C : uint16_t
     GP_SERV_COMMAND_LOCKSTYLE_ERROR   = 0x11C,
     GP_SERV_COMMAND_PARTYREQ          = 0x11D,
     GP_SERV_COMMAND_JUMP              = 0x11E,
+    GP_SERV_COMMAND_GM_CATALOG        = 0x1F0, // Ours, not retail
+    GP_SERV_COMMAND_GM_COMMAND_RESULT = 0x1F1, // Ours, not retail
 };
 
 template <>
 struct magic_enum::customize::enum_range<PacketS2C>
 {
     static constexpr int min = 0;
-    static constexpr int max = 300;
+    static constexpr int max = 0x1FF;
 };

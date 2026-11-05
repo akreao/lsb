@@ -688,6 +688,10 @@ public:
     uint8 m_GMlevel;    // Level of the GM flag assigned to this character
     bool  m_isGMHidden; // GM Hidden flag to prevent player updates from being processed.
 
+    bool              m_wantsGmCatalog{ false }; // Ours: the client asked for the GM catalogue (c2s 0x1F0)
+    timer::time_point m_gmCatalogSentAt{};       // Ours: last answer to c2s 0x1F0, for throttling
+    std::vector<std::string>* m_gmCommandOutput{ nullptr }; // Ours: collects printToPlayer lines while c2s 0x1F1 runs a command
+
     bool   m_jobMasterDisplay; // Job Master Stars display
     uint32 m_moghouseID;
     uint16 m_moghancementID;

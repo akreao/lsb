@@ -158,11 +158,13 @@ enum class PacketC2S : uint16_t
     GP_CLI_COMMAND_MASTERY_DISPLAY      = 0x11B,
     GP_CLI_COMMAND_PARTY_REQUEST        = 0x11C,
     GP_CLI_COMMAND_JUMP                 = 0x11D,
+    GP_CLI_COMMAND_GM_CATALOG_REQ       = 0x1F0, // Ours, not retail
+    GP_CLI_COMMAND_GM_COMMAND           = 0x1F1, // Ours, not retail
 };
 
 template <>
 struct magic_enum::customize::enum_range<PacketC2S>
 {
     static constexpr int min = 0;
-    static constexpr int max = 300;
+    static constexpr int max = 0x1FF;
 };

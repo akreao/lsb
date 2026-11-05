@@ -30,6 +30,7 @@
 
 #include "lua/lua_base_entity.h"
 #include "lua/luautils.h"
+#include "packets/s2c/0x1f0_gm_catalog.h"
 
 #include <algorithm>
 #include <charconv>
@@ -190,4 +191,76 @@ auto CCommandHandler::call(Scheduler& scheduler, sol::state& lua, CCharEntity* c
     }
 
     return CommandResult::Success;
+}
+
+void CCommandHandler::sendCatalog(sol::state& lua, CCharEntity* const PChar)
+{
+    if (!PChar)
+    {
+        return;
+    }
+
+    using Catalog     = GP_SERV_COMMAND_GM_CATALOG;
+    const auto level  = PChar->m_GMlevel;
+    auto       list   = std::vector<Catalog::Entry>{};
+
+    // Players get one empty page with level 0; only GMs see command names.
+    if (level > 0)
+    {
+        const auto commands = lua["xi"]["commands"].get<sol::optional<sol::table>>();
+        if (commands)
+        {
+            for (const auto& [key, value] : *commands)
+            {
+                if (!key.is<std::string>() || !value.is<sol::table>())
+                {
+                    continue;
+                }
+
+                const auto cmdprops = value.as<sol::table>().get<sol::optional<sol::table>>("cmdprops");
+                if (!cmdprops)
+                {
+                    continue;
+                }
+
+                const auto permission = cmdprops->get<sol::optional<int8>>("permission");
+                const auto parameters = cmdprops->get<sol::optional<std::string>>("parameters");
+                auto       name       = key.as<std::string>();
+                if (!permission || !parameters || *permission < 0 || *permission > level || name.size() > 255 || parameters->size() > 255)
+                {
+                    continue;
+                }
+
+                list.push_back({ static_cast<uint8>(*permission), std::move(name), *parameters });
+            }
+        }
+
+        std::ranges::sort(list, {}, &Catalog::Entry::name);
+    }
+
+    // Fill each page up to its byte budget; always send at least one page.
+    std::size_t first = 0;
+    do
+    {
+        std::size_t bytes = 0;
+        std::size_t count = 0;
+        while (first + count < list.size() && count < 255 && bytes + list[first + count].bytes() <= Catalog::MaxEntryBytes)
+        {
+            bytes += list[first + count].bytes();
+            ++count;
+        }
+
+        const bool last = first + count >= list.size();
+        PChar->pushPacket<Catalog>(level, list, first, count, last);
+        first += count;
+    }
+    while (first < list.size());
+}
+
+void CCommandHandler::onGmLevelChanged(sol::state& lua, CCharEntity* const PChar)
+{
+    if (PChar && PChar->m_wantsGmCatalog)
+    {
+        sendCatalog(lua, PChar);
+    }
 }
