@@ -49,4 +49,10 @@ class CCommandHandler
 {
 public:
     static auto call(Scheduler& scheduler, sol::state& lua, CCharEntity* PChar, const std::string& commandline) -> CommandResult;
+
+    // Ours: sends the character's real GM level and the commands it may use (s2c 0x1F0 pages).
+    static void sendCatalog(sol::state& lua, CCharEntity* PChar);
+
+    // Ours: re-sends the catalogue after a GM level change, if the client asked for one before.
+    static void onGmLevelChanged(sol::state& lua, CCharEntity* PChar);
 };

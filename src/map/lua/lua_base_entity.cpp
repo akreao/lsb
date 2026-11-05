@@ -28,7 +28,10 @@
 #include "lua_statuseffect.h"
 #include "luautils.h"
 
+#include "command_handler.h"
+
 #include "common/logging.h"
+#include "common/lua.h"
 #include "common/timer.h"
 #include "common/utils.h"
 
@@ -348,6 +351,13 @@ void CLuaBaseEntity::printToPlayer(const std::string& message, const sol::object
 
     if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
     {
+        // Ours: a command run from the GM window (c2s 0x1F1) returns its output in the reply instead.
+        if (PChar->m_gmCommandOutput)
+        {
+            PChar->m_gmCommandOutput->push_back(message);
+            return;
+        }
+
         PChar->pushPacket<GP_SERV_COMMAND_CHAT_STD>(PChar, messageType, message, name);
     }
 }
@@ -6741,6 +6751,7 @@ void CLuaBaseEntity::setGMLevel(uint8 level)
 
     PChar->m_GMlevel = level;
     charutils::SaveCharGMLevel(PChar);
+    CCommandHandler::onGmLevelChanged(lua, PChar);
 }
 
 /************************************************************************

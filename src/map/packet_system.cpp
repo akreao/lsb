@@ -159,6 +159,8 @@
 #include "packets/c2s/0x11b_mastery_display.h"
 #include "packets/c2s/0x11c_party_request.h"
 #include "packets/c2s/0x11d_jump.h"
+#include "packets/c2s/0x1f0_gm_catalog_req.h"
+#include "packets/c2s/0x1f1_gm_command.h"
 #include "packets/c2s/validation.h"
 #include "utils/moduleutils.h"
 
@@ -364,6 +366,8 @@ consteval auto buildPacketHandlers() -> std::array<PacketHandler, 512>
     registerPacket<GP_CLI_COMMAND_MASTERY_DISPLAY>(handlers);
     registerPacket<GP_CLI_COMMAND_PARTY_REQUEST>(handlers);
     registerPacket<GP_CLI_COMMAND_JUMP>(handlers);
+    registerPacket<GP_CLI_COMMAND_GM_CATALOG_REQ>(handlers);
+    registerPacket<GP_CLI_COMMAND_GM_COMMAND>(handlers);
 
     return handlers;
 }

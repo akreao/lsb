@@ -22,6 +22,9 @@
 #include "map_engine.h"
 
 #include "common/debug.h"
+#include "common/lua.h"
+
+#include "command_handler.h"
 #include "common/huffman.h"
 #include "common/ipp.h"
 #include "common/logging.h"
@@ -465,6 +468,7 @@ void MapEngine::onGM(const std::vector<std::string>& inputs) const
     PChar->m_GMlevel = level;
 
     charutils::SaveCharGMLevel(PChar);
+    CCommandHandler::onGmLevelChanged(lua, PChar);
 
     fmt::print("> Promoting {} to GM level {}\n", PChar->name, level);
     PChar->pushPacket<GP_SERV_COMMAND_CHAT_STD>(PChar, MESSAGE_SYSTEM_3, fmt::format("You have been set to GM level {}.", level));

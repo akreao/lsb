@@ -300,4 +300,8 @@ target_sources(xi_map_packets_s2c PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/0x11d_partyreq.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x11e_jump.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x11e_jump.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x1f0_gm_catalog.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x1f0_gm_catalog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x1f1_gm_command_result.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x1f1_gm_command_result.cpp
 )
