@@ -685,8 +685,8 @@ public:
 
     auto aman() -> CAMANContainer&;
 
-    uint8 m_GMlevel;    // Level of the GM flag assigned to this character
-    bool  m_isGMHidden; // GM Hidden flag to prevent player updates from being processed.
+    uint8 m_GMlevel{};    // Level of the GM flag assigned to this character
+    bool  m_isGMHidden{}; // GM Hidden flag to prevent player updates from being processed.
 
     bool              m_wantsGmCatalog{ false }; // Ours: the client asked for the GM catalogue (c2s 0x1F0)
     timer::time_point m_gmCatalogSentAt{};       // Ours: last answer to c2s 0x1F0, for throttling
