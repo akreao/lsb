@@ -349,7 +349,7 @@ void CLuaBaseEntity::printToPlayer(const std::string& message, const sol::object
     auto messageType = (messageTypeObj == sol::lua_nil) ? MESSAGE_SYSTEM_1 : messageTypeObj.as<CHAT_MESSAGE_TYPE>();
     auto name        = (nameObj == sol::lua_nil) ? "" : nameObj.as<std::string>();
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         // Ours: a command run from the GM window (c2s 0x1F1) returns its output in the reply instead.
         if (PChar->m_gmCommandOutput)
@@ -963,7 +963,7 @@ auto CLuaBaseEntity::getLastOnline() -> uint32
         return 0;
     }
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         return earth_time::timestamp(PChar->lastOnline);
     }
@@ -1684,7 +1684,7 @@ auto CLuaBaseEntity::getMoghouseFlag() -> uint16
         return 0;
     }
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         return PChar->profile.mhflag;
     }
@@ -1707,7 +1707,7 @@ void CLuaBaseEntity::setMoghouseFlag(uint16 flag)
         return;
     }
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         PChar->profile.mhflag = flag;
         charutils::SaveCharStats(PChar);
@@ -1730,7 +1730,7 @@ auto CLuaBaseEntity::needToZone(const sol::object& arg0) -> bool
         return false;
     }
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         bool writeZoning = false;
         if (arg0 != sol::lua_nil)
@@ -2909,7 +2909,7 @@ void CLuaBaseEntity::leaveGame()
         return;
     }
 
-    auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity);
+    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
     if (PChar)
     {
         // Because we can't detect if this is happening in the middle of an effect wearing off or not,
@@ -3710,7 +3710,7 @@ void CLuaBaseEntity::warp()
         return;
     }
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         PChar->requestedWarp = WarpRequest::Warp;
 
@@ -7417,7 +7417,7 @@ void CLuaBaseEntity::setLevel(uint8 level)
         return;
     }
 
-    if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         charutils::RemoveAllEquipMods(PChar);
         PChar->SetMLevel(level);
@@ -8658,11 +8658,7 @@ auto CLuaBaseEntity::getCurrentMission(const sol::object& missionLogObj) const -
         return 0;
     }
 
-    auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity);
-    if (!PChar)
-    {
-        return 0;
-    }
+    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
     uint8  missionLogID = 0;
     uint16 MissionID    = 0;
@@ -10733,13 +10729,7 @@ void CLuaBaseEntity::takeDamage(int32 damage, const sol::object& attacker, const
         PAttacker = dynamic_cast<CBattleEntity*>(PLuaAttacker->m_PBaseEntity);
     }
 
-    CBattleEntity* PDefender = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-
-    if (!PDefender)
-    {
-        ShowWarning("CLuaBaseEntity::takeDamage() - Attempt to use non-BattleEntity as PDefender.");
-        return;
-    }
+    CBattleEntity* PDefender = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     // Check for special flags which may prevent damage from waking up the target
     bool wakeUp        = true;
@@ -12264,7 +12254,7 @@ auto CLuaBaseEntity::getLeaderID() -> uint32
         return 0;
     }
 
-    if (const CCharEntity* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (const CCharEntity* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         if (PChar->PParty != nullptr)
         {
@@ -12492,7 +12482,7 @@ void CLuaBaseEntity::setInstance(CLuaInstance* PLuaInstance)
     }
 
     CInstance*   PInstance   = PLuaInstance->GetInstance();
-    CCharEntity* PChar       = dynamic_cast<CCharEntity*>(m_PBaseEntity);
+    CCharEntity* PChar       = static_cast<CCharEntity*>(m_PBaseEntity);
     m_PBaseEntity->PInstance = PInstance;
 
     if (PInstance && PChar)
@@ -13703,7 +13693,7 @@ auto CLuaBaseEntity::getBaseWeaponDelay(uint16 slot) -> uint16
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
         return 0;
     }
-    CCharEntity* PCharEntity = dynamic_cast<CCharEntity*>(m_PBaseEntity);
+    CCharEntity* PCharEntity = static_cast<CCharEntity*>(m_PBaseEntity);
 
     if (PCharEntity)
     {
@@ -14442,11 +14432,7 @@ auto CLuaBaseEntity::getStatusEffect(xi::StatusEffect StatusID, const sol::objec
         return nullptr;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return nullptr;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     CStatusEffect* PStatusEffect   = nullptr;
     auto           effect_StatusID = StatusID;
@@ -14485,11 +14471,7 @@ auto CLuaBaseEntity::getStatusEffectBySource(xi::StatusEffect StatusID, EffectSo
         return nullptr;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return nullptr;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     return PBattleEntity->StatusEffectContainer->GetStatusEffectBySource(StatusID, SourceType, SourceTypeParam);
 }
@@ -14507,12 +14489,6 @@ auto CLuaBaseEntity::getStatusEffects() -> sol::table
     {
         ShowWarning("Invalid Entity (NPC: %s) calling function.", m_PBaseEntity->getName());
         return sol::lua_nil;
-    }
-
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return {};
     }
 
     auto table = lua.create_table();
@@ -14562,11 +14538,7 @@ auto CLuaBaseEntity::canGainStatusEffect(xi::StatusEffect effect, const sol::obj
 
     uint16 power = powerObj.is<uint16>() ? powerObj.as<uint16>() : 0;
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return false;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     CStatusEffect statusEffect(effect, 0, power, 0s, 0s);
 
@@ -14588,11 +14560,7 @@ auto CLuaBaseEntity::hasStatusEffect(xi::StatusEffect StatusID, const sol::objec
         return false;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return false;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     bool hasEffect = false;
 
@@ -14624,11 +14592,7 @@ auto CLuaBaseEntity::hasStatusEffectByFlag(uint16 StatusID) -> bool
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     return PBattleEntity->StatusEffectContainer->HasStatusEffectByFlag(static_cast<xi::StatusEffectFlag>(StatusID));
 }
@@ -14648,11 +14612,7 @@ auto CLuaBaseEntity::countEffect(xi::StatusEffect StatusID) -> uint8
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     auto effect_StatusID = StatusID;
     return PBattleEntity->StatusEffectContainer->GetEffectsCount(effect_StatusID);
@@ -14673,11 +14633,7 @@ auto CLuaBaseEntity::countEffectWithFlag(uint32 flag) -> uint8
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     auto effectFlag = static_cast<xi::StatusEffectFlag>(flag);
     return PBattleEntity->StatusEffectContainer->GetEffectsCountWithFlag(effectFlag);
@@ -14703,11 +14659,7 @@ auto CLuaBaseEntity::delStatusEffect(xi::StatusEffect StatusID, const sol::objec
         return false;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return false;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     bool result = false;
 
@@ -14747,11 +14699,7 @@ void CLuaBaseEntity::delStatusEffectsByFlag(uint32 flag, const sol::object& sile
         return;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     auto removalNotice = (silent.is<bool>() && silent.as<bool>()) ? EffectNotice::Silent : EffectNotice::ShowMessage;
 
@@ -14773,11 +14721,7 @@ void CLuaBaseEntity::delStatusEffectsByType(uint16 type)
         return;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     PBattleEntity->StatusEffectContainer->DelStatusEffectsByType(type);
 }
@@ -14797,11 +14741,7 @@ auto CLuaBaseEntity::delStatusEffectSilent(xi::StatusEffect StatusID) -> bool
         return false;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return false;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     auto effect_StatusID = StatusID;
     return PBattleEntity->StatusEffectContainer->DelStatusEffectSilent(effect_StatusID);
@@ -14822,11 +14762,7 @@ auto CLuaBaseEntity::eraseStatusEffect() -> uint16
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     auto effect = PBattleEntity->StatusEffectContainer->EraseStatusEffect();
     return static_cast<uint16>(effect);
@@ -14847,11 +14783,7 @@ auto CLuaBaseEntity::eraseAllStatusEffect() -> uint8
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     return PBattleEntity->StatusEffectContainer->EraseAllStatusEffect();
 }
@@ -14871,11 +14803,7 @@ auto CLuaBaseEntity::dispelStatusEffect(const sol::object& flagObj) -> int32
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     uint32 flag = flagObj.is<uint32>() ? flagObj.as<uint32>() : (uint32)xi::StatusEffectFlag::Dispelable;
 
@@ -14897,11 +14825,7 @@ auto CLuaBaseEntity::dispelAllStatusEffect(const sol::object& flagObj) -> uint8
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     uint32 flag = flagObj.is<uint32>() ? flagObj.as<uint32>() : (uint32)xi::StatusEffectFlag::Dispelable;
 
@@ -14923,11 +14847,7 @@ auto CLuaBaseEntity::stealStatusEffect(CLuaBaseEntity* PTargetEntity, const sol:
         return 0;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return 0;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     auto* PTargetBattleEntity = dynamic_cast<CBattleEntity*>(PTargetEntity->GetBaseEntity());
     if (!PTargetBattleEntity)
@@ -14980,11 +14900,7 @@ void CLuaBaseEntity::addMod(uint16 type, int16 amount)
         return;
     }
 
-    auto* PBattleEntity = dynamic_cast<CBattleEntity*>(m_PBaseEntity);
-    if (!PBattleEntity)
-    {
-        return;
-    }
+    auto* PBattleEntity = static_cast<CBattleEntity*>(m_PBaseEntity);
 
     PBattleEntity->addModifier(static_cast<xi::Mod>(type), amount);
 }
@@ -15581,13 +15497,13 @@ auto CLuaBaseEntity::getACC(const sol::object& maybeAttackNumber) -> uint16
 
 auto CLuaBaseEntity::getEVA() -> uint16
 {
-    if (auto* PEntity = static_cast<CBattleEntity*>(m_PBaseEntity))
+    if (m_PBaseEntity->objtype == TYPE_NPC)
     {
-        return PEntity->EVA();
+        ShowWarning("Invalid Entity (NPC: %s) calling function.", m_PBaseEntity->getName());
+        return 0;
     }
 
-    ShowError("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
-    return 0;
+    return static_cast<CBattleEntity*>(m_PBaseEntity)->EVA();
 }
 
 /************************************************************************
@@ -15934,7 +15850,7 @@ auto CLuaBaseEntity::getWeaponHitCount(bool offhand) -> uint16
         return 0;
     }
 
-    if (CCharEntity* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
+    if (CCharEntity* PChar = static_cast<CCharEntity*>(m_PBaseEntity))
     {
         CItemWeapon* PMain = dynamic_cast<CItemWeapon*>(PChar->getEquip(SLOT_MAIN));
         CItemWeapon* PSub  = dynamic_cast<CItemWeapon*>(PChar->getEquip(SLOT_SUB));
@@ -17841,7 +17757,7 @@ void CLuaBaseEntity::setMobLevel(uint8 level, sol::optional<bool> recover)
         return;
     }
 
-    if (auto* PMob = dynamic_cast<CMobEntity*>(m_PBaseEntity))
+    if (auto* PMob = static_cast<CMobEntity*>(m_PBaseEntity))
     {
         PMob->SetMLevel(level);
         PMob->SetSLevel(level);
@@ -18277,7 +18193,7 @@ auto CLuaBaseEntity::getMobFlags() -> xi::EntityFlags
         return xi::EntityFlags::None;
     }
 
-    if (auto* PMob = dynamic_cast<CMobEntity*>(m_PBaseEntity))
+    if (auto* PMob = static_cast<CMobEntity*>(m_PBaseEntity))
     {
         return PMob->getEntityFlags();
     }
@@ -19746,11 +19662,7 @@ void CLuaBaseEntity::drawIn(const sol::variadic_args& va) const
         return;
     }
 
-    const auto mobObj = dynamic_cast<CMobEntity*>(m_PBaseEntity);
-    if (!mobObj)
-    {
-        return;
-    }
+    const auto mobObj = static_cast<CMobEntity*>(m_PBaseEntity);
 
     if (va.size() == 0)
     {
@@ -20074,7 +19986,7 @@ auto CLuaBaseEntity::getStealItem() -> uint16
         return 0;
     }
 
-    auto* PMob = dynamic_cast<CMobEntity*>(m_PBaseEntity);
+    auto* PMob = static_cast<CMobEntity*>(m_PBaseEntity);
 
     if (PMob)
     {
