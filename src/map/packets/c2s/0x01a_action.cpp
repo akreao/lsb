@@ -208,6 +208,10 @@ void GP_CLI_COMMAND_ACTION::process(MapSession* PSession, CCharEntity* PChar) co
             // Releasing a trust
             if (auto* PTrust = dynamic_cast<CTrustEntity*>(PNpc))
             {
+                // The client holds movement and the camera after a Talk until the server releases it.
+                // No event plays for a trust, so release it now rather than when the trust despawns.
+                PChar->pushPacket<GP_SERV_COMMAND_EVENTUCOFF>(PChar, GP_SERV_COMMAND_EVENTUCOFF_MODE::Standard);
+
                 if (PTrust->PMaster != PChar || PTrust->released())
                 {
                     return;
