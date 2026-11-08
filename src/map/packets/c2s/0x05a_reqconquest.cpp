@@ -21,9 +21,11 @@
 
 #include "0x05a_reqconquest.h"
 
+#include "campaign_system.h"
 #include "entities/char_entity.h"
 #include "packets/c2s/validation.h"
 #include "packets/s2c/0x05e_conquest.h"
+#include "packets/s2c/0x071_influence_campaign.h"
 #include "packets/s2c/0x071_influence_colonization.h"
 
 auto GP_CLI_COMMAND_REQCONQUEST::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
@@ -36,10 +38,14 @@ void GP_CLI_COMMAND_REQCONQUEST::process(MapSession* PSession, CCharEntity* PCha
 {
     PChar->pushPacket<GP_SERV_COMMAND_CONQUEST>(PChar);
 
-    // TODO: This does not work reliably with multiple process.
-    // World server needs to stream updates to all map servers.
-    // CampaignState state = campaign::GetCampaignState();
-    // PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::CAMPAIGN>(PChar, state, 0);
-    // PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::CAMPAIGN>(PChar, state, 1);
+    // The campaign map's set (areas 0..12, then 13..25). GetCampaignState reads campaign_map / campaign_nation back
+    // from the database, so it is current whichever map process changed it.
+    if (settings::get<bool>("main.ENABLE_WOTG"))
+    {
+        const CampaignState state = campaign::GetCampaignState();
+        PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::CAMPAIGN>(PChar, state, 0);
+        PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::CAMPAIGN>(PChar, state, 1);
+    }
+
     PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::COLONIZATION>(PChar);
 }
