@@ -77,6 +77,7 @@ struct TrustData
     xi::Ecosystem EcoSystem{}; // ecosystem
 
     uint8  name_prefix{};
+    bool   male{};
     uint8  modelSize{ 0 };
     float  modelHitboxSize{ 0.0f };
     uint16 m_Species{};
@@ -223,6 +224,7 @@ void BuildTrustData(uint32 TrustID)
                                        "mob_pools.cmbDelay, "
                                        "mob_pools.cmbDmgMult, "
                                        "mob_pools.name_prefix, "
+                                       "mob_pools.entityFlags, "
                                        "mob_pools.skill_list_id, "
                                        "mob_pools.modelSize, "
                                        "mob_pools.modelHitboxSize, "
@@ -279,6 +281,7 @@ void BuildTrustData(uint32 TrustID)
             data->cmbDmgMult = rset->get<uint16>("cmbDmgMult");
 
             data->name_prefix    = rset->get<uint8>("name_prefix");
+            data->male           = (rset->get<uint32>("entityFlags") & 0x80) != 0;
             data->m_MobSkillList = rset->get<uint16>("skill_list_id");
 
             data->modelSize       = rset->getOrDefault<uint8>("modelSize", 0);
@@ -371,6 +374,10 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     PTrust->modelSize       = trustData->modelSize;
     PTrust->modelHitboxSize = trustData->modelHitboxSize;
     PTrust->m_EcoSystem     = trustData->EcoSystem;
+
+    // Entity flag 0x080 is sent as 0x00E Flags1 bit 15, the gender bit (set = male): the client picks his/her and
+    // he/she in battle messages from it. Only that bit comes from the pool; trusts never took the pool's other flags.
+    PTrust->setEntityFlags(trustData->male ? static_cast<xi::EntityFlags>(0x80) : xi::EntityFlags::None);
 
     PTrust->SetMJob(trustData->mJob);
     PTrust->SetSJob(trustData->sJob);
