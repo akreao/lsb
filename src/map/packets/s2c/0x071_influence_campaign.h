@@ -59,12 +59,12 @@ struct campaignnations_t
 
 struct campaignzone_t
 {
-    uint32_t unused00 : 1;
-    uint32_t Owner : 3;
+    uint32_t Battle : 1; // A battle is on in the area (the battle marker on the campaign map).
+    uint32_t Owner : 3;  // 0 nobody, 1 San d'Oria, 2 Bastok, 3 Windurst, 4 beastmen.
     uint32_t CurrentFortifications : 10;
     uint32_t CurrentResources : 10;
-    uint32_t Heroism : 8;
-    uint8_t  InfluenceSandoria;
+    uint32_t Heroism : 8;       // 0..200; the client shows (Heroism >> 1) % under the area's marker.
+    uint8_t  InfluenceSandoria; // Influence bytes 0..250; the client shows each x 0.4 %.
     uint8_t  InfluenceBastok;
     uint8_t  InfluenceWindurst;
     uint8_t  InfluenceBeastman;

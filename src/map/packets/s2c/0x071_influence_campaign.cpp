@@ -24,6 +24,9 @@
 #include "0x071_influence.h"
 #include "campaign_system.h"
 
+#include <algorithm>
+#include <iterator>
+
 GP_SERV_COMMAND_INFLUENCE::CAMPAIGN::CAMPAIGN(CCharEntity* PChar, const CampaignState& state, const uint8 number)
 {
     auto& packet = this->data();
@@ -32,52 +35,47 @@ GP_SERV_COMMAND_INFLUENCE::CAMPAIGN::CAMPAIGN(CCharEntity* PChar, const Campaign
     packet.Length      = 0xC4; // This is the size of the rest of the packet after Length but without the padding.
     packet.AlliedNotes = campaign::GetAlliedNotes(PChar);
 
-    packet.ControlledAreas.Sandoria        = state.controlSandoria;
-    packet.Nations.Sandoria.Reconnaissance = state.nations[0].reconnaissance;
-    packet.Nations.Sandoria.Morale         = state.nations[0].morale;
-    packet.Nations.Sandoria.Prosperity     = state.nations[0].prosperity;
+    packet.ControlledAreas.Sandoria = state.controlSandoria;
+    packet.ControlledAreas.Bastok   = state.controlBastok;
+    packet.ControlledAreas.Windurst = state.controlWindurst;
+    packet.ControlledAreas.Beastman = state.controlBeastman;
 
-    packet.ControlledAreas.Bastok        = state.controlBastok;
-    packet.Nations.Bastok.Reconnaissance = state.nations[1].reconnaissance;
-    packet.Nations.Bastok.Morale         = state.nations[1].morale;
-    packet.Nations.Bastok.Prosperity     = state.nations[1].prosperity;
+    campaignnation_t* armies[] = {
+        &packet.Nations.Sandoria,
+        &packet.Nations.Bastok,
+        &packet.Nations.Windurst,
+        &packet.Nations.BeastmanOrc,
+        &packet.Nations.BeastmanQuadav,
+        &packet.Nations.BeastmanYagudo,
+        &packet.Nations.BeastmanDarkKindred,
+    };
 
-    packet.ControlledAreas.Windurst        = state.controlWindurst;
-    packet.Nations.Windurst.Reconnaissance = state.nations[2].reconnaissance;
-    packet.Nations.Windurst.Morale         = state.nations[2].morale;
-    packet.Nations.Windurst.Prosperity     = state.nations[2].prosperity;
-
-    packet.ControlledAreas.Beastman                   = state.controlBeastman;
-    packet.Nations.BeastmanOrc.Reconnaissance         = state.nations[3].reconnaissance;
-    packet.Nations.BeastmanOrc.Morale                 = state.nations[3].morale;
-    packet.Nations.BeastmanOrc.Prosperity             = state.nations[3].prosperity;
-    packet.Nations.BeastmanQuadav.Reconnaissance      = state.nations[4].reconnaissance;
-    packet.Nations.BeastmanQuadav.Morale              = state.nations[4].morale;
-    packet.Nations.BeastmanQuadav.Prosperity          = state.nations[4].prosperity;
-    packet.Nations.BeastmanYagudo.Reconnaissance      = state.nations[5].reconnaissance;
-    packet.Nations.BeastmanYagudo.Morale              = state.nations[5].morale;
-    packet.Nations.BeastmanYagudo.Prosperity          = state.nations[5].prosperity;
-    packet.Nations.BeastmanDarkKindred.Reconnaissance = state.nations[6].reconnaissance;
-    packet.Nations.BeastmanDarkKindred.Morale         = state.nations[6].morale;
-    packet.Nations.BeastmanDarkKindred.Prosperity     = state.nations[6].prosperity;
-
-    const int start   = number == 0 ? 0 : 13;
-    packet.ZoneOffset = start;
-
-    for (int i = start; i < start + 13; i++)
+    for (std::size_t i = 0; i < std::size(armies) && i < state.nations.size(); i++)
     {
-        const CampaignRegion region = state.regions[i];
-        const int            idx    = i - start;
+        armies[i]->Reconnaissance = state.nations[i].reconnaissance;
+        armies[i]->Morale         = state.nations[i].morale;
+        armies[i]->Prosperity     = state.nations[i].prosperity;
+    }
 
-        packet.Zones[idx].Owner                 = region.nationControl;
-        packet.Zones[idx].CurrentFortifications = region.currentFortifications;
-        packet.Zones[idx].CurrentResources      = region.currentResources;
-        packet.Zones[idx].Heroism               = region.heroism;
-        packet.Zones[idx].InfluenceSandoria     = region.influenceSandoria;
-        packet.Zones[idx].InfluenceBastok       = region.influenceBastok;
-        packet.Zones[idx].InfluenceWindurst     = region.influenceWindurst;
-        packet.Zones[idx].InfluenceBeastman     = region.influenceBeastman;
-        packet.Zones[idx].MaxFortifications     = region.maxFortifications;
-        packet.Zones[idx].MaxResources          = region.maxResources;
+    // The client fills its 26 areas (campaign_map ids, in the client's own order) from two packets of 13.
+    const std::size_t start = number == 0 ? 0 : 13;
+    packet.ZoneOffset       = static_cast<uint8_t>(start);
+
+    for (std::size_t i = start; i < start + 13 && i < state.regions.size(); i++)
+    {
+        const CampaignRegion& region = state.regions[i];
+        auto&                 zone   = packet.Zones[i - start];
+
+        zone.Battle                = region.status != 0 ? 1 : 0;
+        zone.Owner                 = std::min<uint8>(region.nationControl, 4);
+        zone.CurrentFortifications = std::min<uint16>(region.currentFortifications, 0x3FF);
+        zone.CurrentResources      = std::min<uint16>(region.currentResources, 0x3FF);
+        zone.Heroism               = region.heroism;
+        zone.InfluenceSandoria     = region.influenceSandoria;
+        zone.InfluenceBastok       = region.influenceBastok;
+        zone.InfluenceWindurst     = region.influenceWindurst;
+        zone.InfluenceBeastman     = region.influenceBeastman;
+        zone.MaxFortifications     = std::min<uint16>(region.maxFortifications, 0x3FF);
+        zone.MaxResources          = std::min<uint16>(region.maxResources, 0x3FF);
     }
 }

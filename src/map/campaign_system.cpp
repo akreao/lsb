@@ -20,7 +20,6 @@
 */
 
 #include "campaign_system.h"
-#include "map/utils/zoneutils.h"
 #include "packets/s2c/0x071_influence_campaign.h"
 #include "utils/charutils.h"
 
@@ -34,8 +33,12 @@ CampaignState campaignState;
 namespace campaign
 {
 
+// Each map process keeps its own copy, so the state is read back from the database (which every process writes
+// through CCampaignHandler and the Set* functions below) rather than from the zones this process happens to run.
 void LoadNations()
 {
+    std::vector<CampaignNation> nations;
+
     const auto rset = db::preparedStmt("SELECT id, reconnaissance, morale, prosperity FROM campaign_nation ORDER BY id ASC");
     if (rset && rset->rowsCount())
     {
@@ -45,74 +48,70 @@ void LoadNations()
             nation.reconnaissance = rset->get<uint8>("reconnaissance");
             nation.morale         = rset->get<uint8>("morale");
             nation.prosperity     = rset->get<uint8>("prosperity");
-            campaignState.nations.emplace_back(nation);
+            nations.emplace_back(nation);
         }
     }
+
+    // Seven armies: the three nations and the four beastmen armies (CampaignArmy).
+    nations.resize(7);
+    campaignState.nations = std::move(nations);
 }
 
 void LoadState()
 {
     CampaignState state;
+    state.nations = std::move(campaignState.nations);
 
-    if (campaignState.regions.empty() == false)
+    const auto rset = db::preparedStmt("SELECT id, isbattle, nation, heroism, influence_sandoria, influence_bastok, influence_windurst, influence_beastman, "
+                                       "current_fortifications, current_resources, max_fortifications, max_resources FROM campaign_map ORDER BY id ASC");
+    if (rset && rset->rowsCount())
     {
-        campaignState.regions.clear();
-        campaignState.controlSandoria = 0;
-        campaignState.controlBastok   = 0;
-        campaignState.controlBeastman = 0;
-        campaignState.controlWindurst = 0;
-        state                         = campaignState;
+        while (rset->next())
+        {
+            CampaignRegion region;
+            region.campaignId = rset->get<uint8>("id");
+            region.status     = rset->get<uint8>("isbattle");
+            // `nation` holds the client's owner byte (CampaignControl: 2 San d'Oria, 4 Bastok, 6 Windurst,
+            // 8 beastmen), i.e. the owner shifted past the battle bit; 0 is nobody.
+            region.nationControl         = rset->get<uint8>("nation") >> 1;
+            region.heroism               = rset->get<uint8>("heroism");
+            region.influenceSandoria     = rset->get<uint8>("influence_sandoria");
+            region.influenceBastok       = rset->get<uint8>("influence_bastok");
+            region.influenceWindurst     = rset->get<uint8>("influence_windurst");
+            region.influenceBeastman     = rset->get<uint8>("influence_beastman");
+            region.currentFortifications = rset->get<uint16>("current_fortifications");
+            region.currentResources      = rset->get<uint16>("current_resources");
+            region.maxFortifications     = rset->get<uint16>("max_fortifications");
+            region.maxResources          = rset->get<uint16>("max_resources");
+
+            switch (region.nationControl)
+            {
+                case CampaignControl::SandoriaMask >> 1:
+                    state.controlSandoria += 1;
+                    break;
+                case CampaignControl::BastokMask >> 1:
+                    state.controlBastok += 1;
+                    break;
+                case CampaignControl::WindurstMask >> 1:
+                    state.controlWindurst += 1;
+                    break;
+                case CampaignControl::BeastmanMask >> 1:
+                    state.controlBeastman += 1;
+                    break;
+                default:
+                    break;
+            }
+
+            state.regions.emplace_back(region);
+        }
     }
 
-    zoneutils::ForEachZone(
-        [&state](CZone* PZone)
-        {
-            if (PZone->campaignHandler() != nullptr)
-            {
-                auto* handler = PZone->campaignHandler();
-
-                uint8 nation = (uint8)(handler->GetZoneControl() + 1) * 2;
-                switch (nation)
-                {
-                    case CampaignControl::SandoriaMask:
-                        state.controlSandoria += 1;
-                        break;
-                    case CampaignControl::BastokMask:
-                        state.controlBastok += 1;
-                        break;
-                    case CampaignControl::WindurstMask:
-                        state.controlWindurst += 1;
-                        break;
-                    case CampaignControl::BeastmanMask:
-                    default:
-                        state.controlBeastman += 1;
-                        break;
-                }
-
-                CampaignRegion region;
-                region.campaignId            = handler->GetCampaignId();
-                region.status                = handler->GetBattleStatus();
-                region.heroism               = handler->GetHeroism();
-                region.influenceSandoria     = handler->GetInfluence(CampaignArmy::Sandoria);
-                region.influenceBastok       = handler->GetInfluence(CampaignArmy::Bastok);
-                region.influenceWindurst     = handler->GetInfluence(CampaignArmy::Windurst);
-                region.influenceBeastman     = handler->GetInfluence(CampaignArmy::Orcish);
-                region.currentFortifications = handler->GetFortification();
-                region.currentResources      = handler->GetResource();
-                region.maxFortifications     = handler->GetMaxFortification();
-                region.maxResources          = handler->GetMaxResource();
-                region.nationControl         = nation;
-                state.regions.emplace_back(region);
-            }
-        });
-
-    std::ranges::sort(state.regions, {}, &CampaignRegion::campaignId);
-
-    campaignState = state;
+    campaignState = std::move(state);
 }
 
 auto GetCampaignState() -> CampaignState
 {
+    LoadNations();
     LoadState();
     return campaignState;
 }
@@ -183,6 +182,7 @@ void SetAlliedNotes(CCharEntity* chr, int32 amount)
 
 void SendUpdate(CCharEntity* PChar)
 {
+    GetCampaignState();
     PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::CAMPAIGN>(PChar, campaignState, 0);
     PChar->pushPacket<GP_SERV_COMMAND_INFLUENCE::CAMPAIGN>(PChar, campaignState, 1);
 }
