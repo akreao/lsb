@@ -25,6 +25,13 @@ end
 function CBaseEntity:messageText(PLuaBaseEntity, messageID, arg2, arg3)
 end
 
+---@param PLuaBaseEntity CBaseEntity
+---@param messageID integer
+---@param showNameObj boolean?
+---@return nil
+function CBaseEntity:eventMessage(PLuaBaseEntity, messageID, showNameObj)
+end
+
 ---@param message string
 ---@param messageTypeObj integer?
 ---@param nameObj string?

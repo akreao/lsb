@@ -68,6 +68,7 @@ target_sources(xi_map_packets_s2c PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/0x03a_magicschedulor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x03a_magicschedulor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x03b_eventmes.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/0x03b_eventmes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x03c_shop_list.h
     ${CMAKE_CURRENT_SOURCE_DIR}/0x03c_shop_list.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/0x03d_shop_sell.h

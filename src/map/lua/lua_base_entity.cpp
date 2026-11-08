@@ -123,6 +123,7 @@
 #include "packets/s2c/0x02d_battle_message2.h"
 #include "packets/s2c/0x02e_openmogmenu.h"
 #include "packets/s2c/0x036_talknum.h"
+#include "packets/s2c/0x03b_eventmes.h"
 #include "packets/s2c/0x038_schedulor.h"
 #include "packets/s2c/0x039_mapschedulor.h"
 #include "packets/s2c/0x03a_magicschedulor.h"
@@ -327,6 +328,36 @@ void CLuaBaseEntity::messageText(CLuaBaseEntity* PLuaBaseEntity, uint16 messageI
     { // broadcast in range
         m_PBaseEntity->loc.zone->PushPacket(m_PBaseEntity, CHAR_INRANGE, std::make_unique<GP_SERV_COMMAND_TALKNUM>(PTarget, messageID, showName, mode));
     }
+}
+
+/************************************************************************
+ *  Function: eventMessage()
+ *  Purpose : Shows an entity's zone text line in the player's event message window
+ *  Example : player:eventMessage(npc, ID.text.SOME_LINE)
+ *  Notes   : Sends 0x03B. Unlike messageText (0x036, chat log), the client pages the
+ *          : line in the event message window, also outside an event. The client
+ *          : drops it unless the entity is loaded for the player.
+ ************************************************************************/
+
+void CLuaBaseEntity::eventMessage(CLuaBaseEntity* PLuaBaseEntity, uint16 messageID, const sol::object& showNameObj)
+{
+    if (PLuaBaseEntity == nullptr)
+    {
+        ShowError("CLuaBaseEntity::eventMessage() - argument 1 of CLuaBaseEntity* was nullptr");
+        return;
+    }
+
+    auto* player = dynamic_cast<CCharEntity*>(m_PBaseEntity);
+    if (player == nullptr)
+    {
+        ShowWarning("CLuaBaseEntity::eventMessage() - %s is not a player", m_PBaseEntity->getName());
+        return;
+    }
+
+    const bool showName = showNameObj.is<bool>() ? showNameObj.as<bool>() : true;
+
+    player->gotMessage = true;
+    player->pushPacket<GP_SERV_COMMAND_EVENTMES>(PLuaBaseEntity->m_PBaseEntity, messageID, showName);
 }
 
 /************************************************************************
@@ -20726,6 +20757,7 @@ void CLuaBaseEntity::Register()
     // Messaging System
     SOL_REGISTER("showText", CLuaBaseEntity::showText);
     SOL_REGISTER("messageText", CLuaBaseEntity::messageText);
+    SOL_REGISTER("eventMessage", CLuaBaseEntity::eventMessage);
     SOL_REGISTER("printToPlayer", CLuaBaseEntity::printToPlayer);
     SOL_REGISTER("printToArea", CLuaBaseEntity::printToArea);
     SOL_REGISTER("messageBasic", CLuaBaseEntity::messageBasic);
