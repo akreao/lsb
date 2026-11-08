@@ -23,8 +23,14 @@
 
 #include "base.h"
 
+class CBaseEntity;
+
 // https://github.com/atom0s/XiPackets/tree/main/world/server/0x003B
 // This packet is sent by the server to display a formatted message loaded from the DAT files.
+// Unlike 0x036, the retail client shows the line in the event message window (paged, waits for Enter when the
+// text asks for it) even when no event is running. The client drops it unless the entity is loaded with this id and
+// index. It clears these lines when fishing ends, an event ends or the zone changes.
+// Number bit 15 set: no "Name : " prefix (same as 0x036).
 class GP_SERV_COMMAND_EVENTMES final : public GP_SERV_PACKET<PacketS2C::GP_SERV_COMMAND_EVENTMES, GP_SERV_COMMAND_EVENTMES>
 {
 public:
@@ -35,6 +41,5 @@ public:
         uint16_t Number;   // PS2: Number
     };
 
-    // TODO: Unimplemented
-    GP_SERV_COMMAND_EVENTMES() = default;
+    GP_SERV_COMMAND_EVENTMES(const CBaseEntity* PEntity, uint16 messageID, bool showName = true);
 };
