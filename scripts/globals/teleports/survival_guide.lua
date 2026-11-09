@@ -137,14 +137,7 @@ xi.survivalGuide.onEventUpdate = function(player, csid, option, npc)
             player:setTeleportMenu(xi.teleport.type.SURVIVAL, favorites)
         end
 
-        for x = 1, 3 do
-            favorites[1] = favorites[1] + favorites[x + 1] * 256 ^ x
-            favorites[5] = favorites[5] + favorites[x + 5] * 256 ^ x
-        end
-
-        favorites[9] = favorites[9] + favorites[10] * 256
-
-        player:updateEvent(favorites[1], favorites[5], favorites[9])
+        player:updateEvent(xi.teleport.packFavorites(favorites))
     end
 end
 

@@ -143,7 +143,7 @@ struct expChain_t
 struct telepoint_t
 {
     uint32 access[4];
-    int32  menu[10];
+    int32  menu[10]{ -1, -1, -1, -1, -1, -1, -1, -1, -1, 0 }; // 9 favorites (-1 is an empty slot, 0 is a real destination), then the menu layout
 };
 
 struct waypoint_t
