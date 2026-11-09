@@ -269,13 +269,7 @@ xi.homepoint.onEventUpdate = function(player, csid, option, npc)
             end
         end
 
-        for x = 1, 3 do -- Condense arrays for event params
-            favs[1] = favs[1] + favs[x + 1] * 256^x
-            favs[5] = favs[5] + favs[x + 5] * 256^x
-        end
-
-        favs[9] = favs[9] + favs[10] * 256
-        player:updateEvent(favs[1], favs[5], favs[9])
+        player:updateEvent(xi.teleport.packFavorites(favs))
     else
         player:updateEvent(-1, -1, -1)
     end

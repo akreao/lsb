@@ -213,6 +213,21 @@ xi.teleport.type =
     ESCHAN_PORTAL      = 12,
 }
 
+-- Packs the 9 favorites from getTeleportMenu (home points or survival guides) and the menu layout into the
+-- 3 event update params: one byte per favorite, 0xFF for an empty slot (-1), and the layout in byte 1 of the third.
+xi.teleport.packFavorites = function(favorites)
+    local params = { 0, 0, 0 }
+
+    for slot = 1, 9 do
+        local param = math.floor((slot - 1) / 4) + 1
+        params[param] = params[param] + bit.band(favorites[slot], 0xFF) * 256 ^ ((slot - 1) % 4)
+    end
+
+    params[3] = params[3] + bit.band(favorites[10], 0xFF) * 256
+
+    return params[1], params[2], params[3]
+end
+
 xi.teleport.runic_portal =
 {
     AZOUPH  = 1,
