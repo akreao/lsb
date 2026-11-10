@@ -143,7 +143,7 @@ struct expChain_t
 struct telepoint_t
 {
     uint32 access[4];
-    int32  menu[10]{ -1, -1, -1, -1, -1, -1, -1, -1, -1, 0 }; // 9 favorites (-1 is an empty slot, 0 is a real destination), then the menu layout
+    int32  menu[10]; // 9 favorites (-1 is an empty slot, 0 is a real destination), then the menu layout. Must stay trivial to bind as a blob, so the -1 fill happens on load.
 };
 
 struct waypoint_t

@@ -789,7 +789,7 @@ auto LoadFromCharUnlocksSQL(CCharEntity* PChar) -> void
         db::extractFromBlob(rset, "homepoints", PChar->teleport.homepoint);
         db::extractFromBlob(rset, "survivals", PChar->teleport.survival);
 
-        // Characters saved before empty favorites defaulted to -1 have 0 in every slot, which the menu shows as the first destination.
+        // New characters, and ones saved before empty favorites were -1, have 0 in every slot, which the menu shows as the first destination.
         for (auto* telepoint : { &PChar->teleport.homepoint, &PChar->teleport.survival })
         {
             if (std::count(telepoint->menu, telepoint->menu + 9, 0) == 9)
