@@ -143,7 +143,7 @@ struct expChain_t
 struct telepoint_t
 {
     uint32 access[4];
-    int32  menu[10]{ -1, -1, -1, -1, -1, -1, -1, -1, -1, 0 }; // 9 favorites (-1 is an empty slot, 0 is a real destination), then the menu layout
+    int32  menu[10]; // 9 favorites (-1 is an empty slot, 0 is a real destination), then the menu layout. Must stay trivial to bind as a blob, so the -1 fill happens on load.
 };
 
 struct waypoint_t
@@ -691,8 +691,8 @@ public:
     uint8 m_GMlevel{};    // Level of the GM flag assigned to this character
     bool  m_isGMHidden{}; // GM Hidden flag to prevent player updates from being processed.
 
-    bool              m_wantsGmCatalog{ false }; // Ours: the client asked for the GM catalogue (c2s 0x1F0)
-    timer::time_point m_gmCatalogSentAt{};       // Ours: last answer to c2s 0x1F0, for throttling
+    bool                      m_wantsGmCatalog{ false };    // Ours: the client asked for the GM catalogue (c2s 0x1F0)
+    timer::time_point         m_gmCatalogSentAt{};          // Ours: last answer to c2s 0x1F0, for throttling
     std::vector<std::string>* m_gmCommandOutput{ nullptr }; // Ours: collects printToPlayer lines while c2s 0x1F1 runs a command
 
     bool   m_jobMasterDisplay; // Job Master Stars display
