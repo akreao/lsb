@@ -754,6 +754,9 @@ public:
     uint32          fishingToken; // To track fishing process
     uint8           hookDelay;    // How long it takes to hook a fish
 
+    xi::Animation     fishingWatchAnimation{ xi::Animation::None }; // Fishing status the timeout is watching
+    timer::time_point fishingWatchSince{};                          // When that status was first seen
+
     void ReloadPartyInc();
     void ReloadPartyDec();
     auto ReloadParty() const -> bool;

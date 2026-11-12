@@ -24,6 +24,7 @@
 #include "data/enums/zone.h"
 
 #include "common/cbasetypes.h"
+#include "common/timer.h"
 #include "data/enums/key_item.h"
 #include "items/item.h"
 
@@ -957,6 +958,8 @@ auto UnhookMob(CCharEntity* PChar, Lost lost) -> uint8;
 auto FishingCheck(CCharEntity* PChar, uint8 fishingSkill, rod_t* rod, bait_t* bait, fishingarea_t* area) -> fishresponse_t*;
 auto ReelCheck(CCharEntity* PChar, fishresponse_t* response, rod_t* rod) -> catchresponse_t*;
 void FishingAction(CCharEntity* PChar, GP_CLI_COMMAND_FISHING_2_MODE mode, uint32 para, uint32 para2);
+void RejectedFishingAction(CCharEntity* PChar, GP_CLI_COMMAND_FISHING_2_MODE mode);
+void CheckFishingTimeout(CCharEntity* PChar, timer::time_point tick);
 auto GetFish(uint16 itemid) -> std::unique_ptr<CItem>;
 
 // Initialization

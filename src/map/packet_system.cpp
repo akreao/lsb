@@ -164,6 +164,8 @@
 #include "packets/c2s/0x1f0_gm_catalog_req.h"
 #include "packets/c2s/0x1f1_gm_command.h"
 #include "packets/c2s/validation.h"
+#include "packets/s2c/0x052_eventucoff.h"
+#include "utils/fishingutils.h"
 #include "utils/moduleutils.h"
 
 namespace
@@ -183,6 +185,30 @@ constexpr auto packetSizeRange() -> std::pair<std::size_t, std::size_t>
     {
         return { maxSize, maxSize };
     }
+}
+
+// A rejected packet is dropped, but the client sends some requests once and then waits for the answer.
+// These hooks give those requests the answer that lets the client go on.
+template <typename T>
+void onRejectedPacket(CCharEntity* const /*PChar*/, const T& /*packet*/)
+{
+}
+
+// The client holds the player in place after /fish until the cast starts or the server releases it.
+template <>
+void onRejectedPacket(CCharEntity* const PChar, const GP_CLI_COMMAND_ACTION& packet)
+{
+    if (packet.ActionID == GP_CLI_COMMAND_ACTION_ACTIONID::Fish)
+    {
+        PChar->pushPacket<GP_SERV_COMMAND_EVENTUCOFF>(PChar, GP_SERV_COMMAND_EVENTUCOFF_MODE::Fishing);
+    }
+}
+
+// The client sends each fishing step once and waits for the status that answers it.
+template <>
+void onRejectedPacket(CCharEntity* const PChar, const GP_CLI_COMMAND_FISHING_2& packet)
+{
+    fishingutils::RejectedFishingAction(PChar, static_cast<GP_CLI_COMMAND_FISHING_2_MODE>(packet.mode));
 }
 
 template <typename T>
@@ -225,6 +251,7 @@ void ValidatedPacketHandler(MapSession* const PSession, CCharEntity* const PChar
     else
     {
         ShowWarningFmt("Invalid {} packet from {}: {}", T::name, PChar->getName(), result.errorString());
+        onRejectedPacket(PChar, *packet);
     }
 }
 

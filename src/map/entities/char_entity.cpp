@@ -107,6 +107,7 @@
 #include "universal_container.h"
 #include "utils/battleutils.h"
 #include "utils/charutils.h"
+#include "utils/fishingutils.h"
 #include "utils/gardenutils.h"
 #include "utils/messageutils.h"
 #include "utils/moduleutils.h"
@@ -1187,6 +1188,8 @@ auto CCharEntity::Tick(timer::time_point tick) -> Task<void>
     {
         gardenutils::UpdateGardening(this, SendPacket::Yes);
     }
+
+    fishingutils::CheckFishingTimeout(this, tick);
 
     co_return;
 }
