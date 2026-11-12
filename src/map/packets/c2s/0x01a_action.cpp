@@ -526,13 +526,17 @@ void GP_CLI_COMMAND_ACTION::process(MapSession* PSession, CCharEntity* PChar) co
             {
                 PChar->loc.zone->SpawnConditionalNPCs(PChar);
             }
-            else
+            else if (!PChar->isInEvent())
             {
                 PChar->requestedInfoSync = true;
                 PChar->loc.zone->SpawnNPCs(PChar);
                 PChar->loc.zone->SpawnMOBs(PChar);
                 PChar->loc.zone->SpawnTRUSTs(PChar);
             }
+            // During a zone-in event the client sends this in the frame the event starts, and sends no position
+            // (0x015) until the event ends. Retail shows only the event's own actors meanwhile (the client asks for
+            // those with 0x016), so the area's entities wait for the first 0x015 after the event. Spawning them here
+            // put bystanders into cutscenes, e.g. a city's NPCs inside the Windurst Walls scenery of its opening.
         }
         break;
         case GP_CLI_COMMAND_ACTION_ACTIONID::Quarry:
