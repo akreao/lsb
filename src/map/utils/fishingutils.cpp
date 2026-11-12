@@ -2940,6 +2940,12 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
         {
             if (PChar->fishingToken == 0)
             {
+                // The client sent its hook check and now waits for a fish or a result
+                if (PChar->animation == xi::Animation::NewFishingStart)
+                {
+                    CatchNothing(PChar, FISHINGFAILTYPE_NONE);
+                }
+
                 return;
             }
 
@@ -3050,6 +3056,13 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
         {
             if (PChar->fishingToken == 0)
             {
+                // The client sent its end and now waits for a result status
+                if (PChar->animation == xi::Animation::NewFishingStart || PChar->animation == xi::Animation::NewFishingFish)
+                {
+                    PChar->animation = xi::Animation::NewFishingStop;
+                    PChar->updatemask |= UPDATE_HP;
+                }
+
                 return;
             }
 
@@ -3210,6 +3223,109 @@ void FishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode,
         }
         break;
     }
+}
+
+// A fishing packet that failed validation. The client sent it once and waits for the status that answers it,
+// so end the step it asked for rather than leave the angler held in place.
+void RejectedFishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MODE mode)
+{
+    if (!PChar->isFishing())
+    {
+        return;
+    }
+
+    switch (mode)
+    {
+        case GP_CLI_COMMAND_FISHING_2_MODE::RequestCheckHook:
+        case GP_CLI_COMMAND_FISHING_2_MODE::RequestEndMiniGame:
+        {
+            // A result is already on its way to the client
+            if (PChar->animation != xi::Animation::NewFishingStart && PChar->animation != xi::Animation::NewFishingFish)
+            {
+                return;
+            }
+
+            if (PChar->hookedFish != nullptr && PChar->hookedFish->hooked && PChar->fishingToken != 0)
+            {
+                // Same cost as giving up in the minigame
+                AbandonHook(PChar);
+                PChar->hookedFish->successtype = FISHINGSUCCESSTYPE_NONE;
+                LoseCatch(PChar, FISHINGFAILTYPE_NONE);
+            }
+            else
+            {
+                CatchNothing(PChar, FISHINGFAILTYPE_NONE);
+            }
+
+            PChar->fishingToken = 0;
+        }
+        break;
+
+        case GP_CLI_COMMAND_FISHING_2_MODE::RequestRelease:
+        {
+            if (PChar->hookedFish != nullptr && PChar->hookedFish->hooked && PChar->fishingToken != 0)
+            {
+                AbandonHook(PChar);
+            }
+
+            ReleaseFishing(PChar);
+        }
+        break;
+
+        default:
+            break;
+    }
+}
+
+// How long a fishing status may stand before the server ends it on its own.
+auto FishingStatusLimit(const CCharEntity* PChar) -> timer::duration
+{
+    switch (PChar->animation)
+    {
+        case xi::Animation::NewFishingStart:
+            // The client waits the hook time it was sent, or up to 25 seconds when it has none
+            return 60s;
+        case xi::Animation::NewFishingFish:
+            // The client ends the fight itself when the fish's time runs out
+            return std::chrono::seconds(PChar->hookedFish != nullptr ? PChar->hookedFish->timelimit : 0) + 30s;
+        default:
+            // A result: the client releases once its motion has played
+            return 30s;
+    }
+}
+
+// The client sends each fishing step once. When one never arrives, the angler would stay in a fishing status
+// for good, unable to move or log out, so a status that outlives its step is ended here.
+void CheckFishingTimeout(CCharEntity* PChar, const timer::time_point tick)
+{
+    if (!PChar->isFishing() || PChar->animation == xi::Animation::FishingStart)
+    {
+        PChar->fishingWatchAnimation = xi::Animation::None;
+        return;
+    }
+
+    if (PChar->animation != PChar->fishingWatchAnimation)
+    {
+        PChar->fishingWatchAnimation = PChar->animation;
+        PChar->fishingWatchSince     = tick;
+        return;
+    }
+
+    if (tick - PChar->fishingWatchSince < FishingStatusLimit(PChar))
+    {
+        return;
+    }
+
+    ShowWarningFmt("fishingutils: {} stayed in fishing status {} past its limit, releasing", PChar->getName(), static_cast<uint32>(PChar->animation));
+
+    if (PChar->hookedFish != nullptr && PChar->hookedFish->hooked && PChar->fishingToken != 0)
+    {
+        AbandonHook(PChar);
+    }
+
+    ReleaseFishing(PChar);
+    PChar->pushPacket<GP_SERV_COMMAND_EVENTUCOFF>(PChar, GP_SERV_COMMAND_EVENTUCOFF_MODE::Fishing);
+    PChar->fishingWatchAnimation = xi::Animation::None;
 }
 
 auto GetFish(uint16 itemid) -> std::unique_ptr<CItem>
