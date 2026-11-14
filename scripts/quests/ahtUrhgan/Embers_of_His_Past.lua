@@ -290,7 +290,7 @@ quest.sections =
                     if quest:getVar(player, 'Option') == 1 then
                         return quest:progressEvent(921, { text_table = 0 })
                     else
-                        return quest:event(923, { text_table = 0 }):replaceDefault()
+                        return quest:event(923):replaceDefault()
                     end
                 end,
             },
