@@ -38,7 +38,7 @@ mission.sections =
                     then
                         return mission:progressEvent(3111, 0, 1, 1, 0, 0, 0, 0, 128)
                     else
-                        return mission:event(3114, 0, 1, 0, 0, 0, 0, 1, 0)
+                        return mission:event(3114, 0, 1, 0, 0, 0, 0, 1, 0, 0)
                     end
                 end,
             },
