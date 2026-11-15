@@ -145,6 +145,17 @@ xi.player.charCreate = function(player)
         player:setHomePoint()
     end
 
+    -- One-time bonus items (retail campaign code items). The char var stops a second grant if this runs again.
+    if player:getCharVar('BonusItemsGiven') == 0 then
+        for _, itemId in ipairs(xi.settings.main.NEW_CHARACTER_BONUS_ITEMS or {}) do
+            if not player:hasItem(itemId) and not player:addItem(itemId) then
+                SendItemToDeliveryBox(player:getName(), itemId, 1, 'Moogle')
+            end
+        end
+
+        player:setCharVar('BonusItemsGiven', 1)
+    end
+
     player:addTitle(xi.title.NEW_ADVENTURER)
     player:setCharVar('HQuest[moghouseExpo]notSeen', 1) -- needs Moghouse intro
     player:setCharVar('spokeKindlix', 1)                -- Kindlix introduction
