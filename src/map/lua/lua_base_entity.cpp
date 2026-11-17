@@ -9059,6 +9059,28 @@ auto CLuaBaseEntity::hasEminenceRecord(uint16 recordID) -> bool
 }
 
 /************************************************************************
+ *  Function: addEminenceGrowthRecord(record)
+ *  Purpose : Undertakes a growth objective (message 829, s2c 0x111 entry 42)
+ *  Example : player:addEminenceGrowthRecord(1067)
+ ************************************************************************/
+
+auto CLuaBaseEntity::addEminenceGrowthRecord(uint16 recordID) -> bool
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return false;
+    }
+
+    if (!settings::get<bool>("main.ENABLE_ROE"))
+    {
+        return false;
+    }
+
+    return roeutils::AddEminenceGrowthRecord(static_cast<CCharEntity*>(m_PBaseEntity), recordID);
+}
+
+/************************************************************************
  *  Function: hasCelestite(itemId)
  *  Purpose : Returns true if the celestite is registered (Trust Ascension)
  *  Example : player:hasCelestite(xi.item.PIECE_OF_CELESTITE_DEFENSE)
@@ -21193,6 +21215,7 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("getEminenceProgress", CLuaBaseEntity::getEminenceProgress);
     SOL_REGISTER("setEminenceProgress", CLuaBaseEntity::setEminenceProgress);
     SOL_REGISTER("hasEminenceRecord", CLuaBaseEntity::hasEminenceRecord);
+    SOL_REGISTER("addEminenceGrowthRecord", CLuaBaseEntity::addEminenceGrowthRecord);
     SOL_REGISTER("triggerRoeEvent", CLuaBaseEntity::triggerRoeEvent);
     SOL_REGISTER("hasCelestite", CLuaBaseEntity::hasCelestite);
     SOL_REGISTER("addCelestite", CLuaBaseEntity::addCelestite);

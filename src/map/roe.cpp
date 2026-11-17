@@ -270,6 +270,11 @@ auto event(const ROE_EVENT eventID, CCharEntity* PChar, const RoeDatagramList& p
         }
     }
 
+    if (const uint16 recordID = PChar->m_eminenceLog.growth; recordID && handler.bitmap.test(recordID))
+    {
+        call_onRecordTrigger(PChar, recordID, payload);
+    }
+
     return true;
 }
 
@@ -388,9 +393,40 @@ auto AddEminenceRecord(CCharEntity* PChar, uint16 recordID) -> bool
     return false;
 }
 
+auto AddEminenceGrowthRecord(CCharEntity* PChar, const uint16 recordID) -> bool
+{
+    TracyZoneScoped;
+
+    if (!RoeSystem.ImplementedRecords.test(recordID) || PChar->m_eminenceLog.growth != 0 || HasEminenceRecord(PChar, recordID))
+    {
+        return false;
+    }
+
+    PChar->m_eminenceLog.growth         = recordID;
+    PChar->m_eminenceLog.growthProgress = 0;
+    PChar->m_eminenceCache.activemap.set(recordID);
+
+    // Retail: message 829 first, then the active list with the record in entry 42.
+    PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, recordID, 0, MsgBasic::ROEGrowthStart);
+    PChar->pushPacket<GP_SERV_COMMAND_ROE_ACTIVELOG>(PChar);
+    charutils::SaveEminenceData(PChar);
+
+    return true;
+}
+
 auto DelEminenceRecord(CCharEntity* PChar, const uint16 recordID) -> bool
 {
     TracyZoneScoped;
+
+    if (recordID != 0 && PChar->m_eminenceLog.growth == recordID)
+    {
+        PChar->m_eminenceLog.growth         = 0;
+        PChar->m_eminenceLog.growthProgress = 0;
+        PChar->m_eminenceCache.activemap.reset(recordID);
+        PChar->pushPacket<GP_SERV_COMMAND_ROE_ACTIVELOG>(PChar);
+        charutils::SaveEminenceData(PChar);
+        return true;
+    }
 
     for (int i = 0; i < 30; i++)
     {
@@ -424,6 +460,11 @@ auto GetEminenceRecordProgress(const CCharEntity* PChar, const uint16 recordID) 
 {
     TracyZoneScoped;
 
+    if (recordID != 0 && PChar->m_eminenceLog.growth == recordID)
+    {
+        return PChar->m_eminenceLog.growthProgress;
+    }
+
     for (int i = 0; i < 31; i++)
     {
         if (PChar->m_eminenceLog.active[i] == recordID)
@@ -437,6 +478,17 @@ auto GetEminenceRecordProgress(const CCharEntity* PChar, const uint16 recordID) 
 auto SetEminenceRecordProgress(CCharEntity* PChar, const uint16 recordID, const uint32 progress) -> bool
 {
     TracyZoneScoped;
+
+    if (recordID != 0 && PChar->m_eminenceLog.growth == recordID)
+    {
+        if (PChar->m_eminenceLog.growthProgress != progress)
+        {
+            PChar->m_eminenceLog.growthProgress = progress;
+            PChar->pushPacket<GP_SERV_COMMAND_ROE_ACTIVELOG>(PChar);
+            SaveEminenceDataNice(PChar);
+        }
+        return true;
+    }
 
     for (int i = 0; i < 31; i++)
     {
@@ -504,6 +556,11 @@ void onCharLoad(CCharEntity* PChar)
         {
             PChar->m_eminenceCache.activemap.set(record);
         }
+    }
+
+    if (PChar->m_eminenceLog.growth)
+    {
+        PChar->m_eminenceCache.activemap.set(PChar->m_eminenceLog.growth);
     }
 
     // Only chars with First Step Forward complete can get timed/daily records

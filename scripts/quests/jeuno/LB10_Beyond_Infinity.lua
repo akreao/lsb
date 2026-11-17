@@ -285,7 +285,9 @@ quest.sections =
                         player:getMainLvl() >= 99 and
                         not player:hasKeyItem(xi.keyItem.JOB_BREAKER)
                     then
-                        return quest:progressEvent(10240, playerLevel, limitBreaker)
+                        -- Retail sends 99, 1, 5, 2, 0x02FFFFFE, 0x8BBD0, 0xFFF, 0x2001D. The event reads none of
+                        -- them; the last four are unknown (they look character specific) and are left at 0.
+                        return quest:progressEvent(10240, playerLevel, limitBreaker, 5, 2)
                     else
                         return quest:event(10045, playerLevel, limitBreaker, 0, 0)
                     end
@@ -297,6 +299,9 @@ quest.sections =
                 [10240] = function(player, csid, option, npc)
                     if option == 28 then
                         npcUtil.giveKeyItem(player, xi.keyItem.JOB_BREAKER)
+
+                        -- Retail undertakes the growth objective Unlocking Alter Ego Points here (message 829).
+                        player:addEminenceGrowthRecord(1067)
                     end
                 end,
             },

@@ -222,6 +222,16 @@ xi.roe.records =
         }
     },
 
+    [1067] =
+    { -- Unlocking Alter Ego Points (growth objective: undertaken on receiving Job Breaker, completed by Syndella)
+        reward =
+        {
+            sparks = 100,
+            exp = 300,
+            item = { xi.item.TRUST_MAGIC_TOME },
+        }
+    },
+
     -----------------------------------
     -- Tutorial -> Synthesis
     -----------------------------------

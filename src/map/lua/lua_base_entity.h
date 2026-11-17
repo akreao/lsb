@@ -459,6 +459,7 @@ public:
     auto setEminenceProgress(uint16 recordID, uint32 progress, const sol::object& arg2) -> bool;
     auto getEminenceProgress(uint16 recordID) -> Maybe<uint32>;
     auto hasEminenceRecord(uint16 recordID) -> bool;
+    auto addEminenceGrowthRecord(uint16 recordID) -> bool;
     void triggerRoeEvent(uint8 eventNum, const sol::object& reqTable);
 
     auto hasCelestite(uint16 itemId) -> bool;
