@@ -33,6 +33,7 @@
 #include "utils/charutils.h"
 
 #include <cstring>
+#include <unordered_map>
 
 namespace trustascension
 {
@@ -190,6 +191,176 @@ auto UpgradeAlterEgo(CCharEntity* PChar, const uint8 category) -> bool
     PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_POINTS>(PChar);
 
     return true;
+}
+
+namespace
+{
+
+// Trust spell id -> celestite set. Generated from the client's spell list (HD icon id / 9 = role).
+const std::unordered_map<uint32, uint8> trustCelestiteSets = {
+    { 896, 4 },  // Shantotto: Offensive Caster
+    { 897, 2 },  // Naji: Melee Fighter
+    { 898, 5 },  // Kupipi: Healer
+    { 899, 2 },  // Excenmille: Melee Fighter
+    { 900, 2 },  // Ayame: Melee Fighter
+    { 901, 2 },  // Nanaa Mihgo: Melee Fighter
+    { 902, 1 },  // Curilla: Tank
+    { 903, 2 },  // Volker: Melee Fighter
+    { 904, 4 },  // Ajido-Marujido: Offensive Caster
+    { 905, 1 },  // Trion: Tank
+    { 906, 2 },  // Zeid: Melee Fighter
+    { 907, 2 },  // Lion: Melee Fighter
+    { 908, 2 },  // Tenzen: Melee Fighter
+    { 909, 5 },  // Mihli Aliapoh: Healer
+    { 910, 1 },  // Valaineral: Tank
+    { 911, 6 },  // Joachim: Support
+    { 912, 2 },  // Naja Salaheem: Melee Fighter
+    { 913, 2 },  // Prishe: Melee Fighter
+    { 914, 6 },  // Ulmia: Support
+    { 915, 2 },  // Shikaree Z: Melee Fighter
+    { 916, 5 },  // Cherukiki: Healer
+    { 917, 2 },  // Iron Eater: Melee Fighter
+    { 918, 1 },  // Gessho: Tank
+    { 919, 4 },  // Gadalar: Offensive Caster
+    { 920, 2 },  // Rainemard: Melee Fighter
+    { 921, 4 },  // Ingrid: Offensive Caster
+    { 922, 2 },  // Lehko Habhoka: Melee Fighter
+    { 923, 2 },  // Nashmeira: Melee Fighter
+    { 924, 2 },  // Zazarg: Melee Fighter
+    { 925, 4 },  // Ovjang: Offensive Caster
+    { 926, 1 },  // Mnejing: Tank
+    { 927, 0 },  // Sakura: Special
+    { 928, 2 },  // Luzaf: Melee Fighter
+    { 929, 3 },  // Najelith: Ranged Fighter
+    { 930, 2 },  // Aldo: Melee Fighter
+    { 931, 0 },  // Moogle: Special
+    { 932, 2 },  // Fablinix: Melee Fighter
+    { 933, 2 },  // Maat: Melee Fighter
+    { 934, 4 },  // D. Shantotto: Offensive Caster
+    { 935, 0 },  // Star Sibyl: Special
+    { 936, 5 },  // Karaha-Baruha: Healer
+    { 937, 2 },  // Cid: Melee Fighter
+    { 938, 2 },  // Gilgamesh: Melee Fighter
+    { 939, 2 },  // Areuhat: Melee Fighter
+    { 940, 3 },  // Semih Lafihna: Ranged Fighter
+    { 941, 3 },  // Elivira: Ranged Fighter
+    { 942, 2 },  // Noillurie: Melee Fighter
+    { 943, 2 },  // Lhu Mhakaracca: Melee Fighter
+    { 944, 5 },  // Ferreous Coffin: Healer
+    { 945, 2 },  // Lilisette: Melee Fighter
+    { 946, 2 },  // Mumor: Melee Fighter
+    { 947, 2 },  // Uka Totlihn: Melee Fighter
+    { 948, 2 },  // Klara: Melee Fighter
+    { 949, 2 },  // Romaa Mihgo: Melee Fighter
+    { 950, 0 },  // Kuyin Hathdenna: Special
+    { 951, 1 },  // Rahal: Tank
+    { 952, 6 },  // Koru-Moru: Support
+    { 953, 5 },  // Pieuje (UC): Healer
+    { 954, 2 },  // I. Shield (UC): Melee Fighter
+    { 955, 5 },  // Apururu (UC): Healer
+    { 956, 2 },  // Jakoh (UC): Melee Fighter
+    { 957, 2 },  // Flaviria (UC): Melee Fighter
+    { 958, 2 },  // Babban: Melee Fighter
+    { 959, 2 },  // Abenzio: Melee Fighter
+    { 960, 1 },  // Rughadjeen: Tank
+    { 961, 4 },  // Kukki-Chebukki: Offensive Caster
+    { 962, 3 },  // Margret: Ranged Fighter
+    { 963, 2 },  // Chacharoon: Melee Fighter
+    { 964, 2 },  // Lhe Lhangavo: Melee Fighter
+    { 965, 6 },  // Arciela: Support
+    { 966, 2 },  // Mayakov: Melee Fighter
+    { 967, 6 },  // Qultada: Support
+    { 968, 4 },  // Adelheid: Offensive Caster
+    { 969, 1 },  // Amchuchu: Tank
+    { 970, 0 },  // Brygid: Special
+    { 971, 2 },  // Mildaurion: Melee Fighter
+    { 972, 2 },  // Halver: Melee Fighter
+    { 973, 2 },  // Rongelouts: Melee Fighter
+    { 974, 4 },  // Leonoyne: Offensive Caster
+    { 975, 2 },  // Maximilian: Melee Fighter
+    { 976, 4 },  // Kayeel-Payeel: Offensive Caster
+    { 977, 4 },  // Robel-Akbel: Offensive Caster
+    { 978, 0 },  // Kupofried: Special
+    { 979, 2 },  // Selh'teus: Melee Fighter
+    { 980, 5 },  // Yoran-Oran (UC): Healer
+    { 981, 6 },  // Sylvie (UC): Support
+    { 982, 2 },  // Abquhbah: Melee Fighter
+    { 983, 2 },  // Balamor: Melee Fighter
+    { 984, 1 },  // August: Tank
+    { 985, 4 },  // Rosulatia: Offensive Caster
+    { 986, 2 },  // Teodor: Melee Fighter
+    { 987, 4 },  // Ullegore: Offensive Caster
+    { 988, 3 },  // Makki-Chebukki: Ranged Fighter
+    { 989, 6 },  // King of Hearts: Support
+    { 990, 2 },  // Morimar: Melee Fighter
+    { 991, 2 },  // Darrcuiln: Melee Fighter
+    { 992, 1 },  // AAHM: Tank
+    { 993, 1 },  // AAEV: Tank
+    { 994, 2 },  // AAMR: Melee Fighter
+    { 995, 4 },  // AATT: Offensive Caster
+    { 996, 2 },  // AAGK: Melee Fighter
+    { 997, 2 },  // Iroha: Melee Fighter
+    { 998, 5 },  // Ygnas: Healer
+    { 999, 5 },  // Monberaux: Healer
+    { 1002, 0 }, // Cornelia: Special
+    { 1003, 2 }, // Matsui-P: Melee Fighter
+    { 1004, 2 }, // Excenmille [S]: Melee Fighter
+    { 1005, 2 }, // Ayame (UC): Melee Fighter
+    { 1006, 2 }, // Maat (UC): Melee Fighter
+    { 1007, 2 }, // Aldo (UC): Melee Fighter
+    { 1008, 2 }, // Naja (UC): Melee Fighter
+    { 1009, 2 }, // Lion II: Melee Fighter
+    { 1010, 2 }, // Zeid II: Melee Fighter
+    { 1011, 2 }, // Prishe II: Melee Fighter
+    { 1012, 2 }, // Nashmeira II: Melee Fighter
+    { 1013, 2 }, // Lilisette II: Melee Fighter
+    { 1014, 3 }, // Tenzen II: Ranged Fighter
+    { 1015, 4 }, // Mumor II: Offensive Caster
+    { 1016, 2 }, // Ingrid II: Melee Fighter
+    { 1017, 6 }, // Arciela II: Support
+    { 1018, 2 }, // Iroha II: Melee Fighter
+    { 1019, 4 }, // Shantotto II: Offensive Caster
+};
+
+} // namespace
+
+auto CelestiteSetForTrust(const uint32 trustSpellId) -> uint8
+{
+    const auto it = trustCelestiteSets.find(trustSpellId);
+    return it != trustCelestiteSets.end() ? it->second : 0;
+}
+
+void ApplyCelestite(CTrustEntity* PTrust, const CCharEntity* PMaster)
+{
+    // Celestite are level 99 items (client item records) and work through the Celestite Case.
+    if (!PMaster || PTrust->GetMLevel() < 99 || !charutils::hasKeyItem(PMaster, xi::KeyItem::CelestiteCase))
+    {
+        return;
+    }
+
+    const uint8 set = CelestiteSetForTrust(PTrust->trustID());
+    if (set == 0)
+    {
+        return;
+    }
+
+    for (uint8 slot = 0; slot < CelestiteSlots; slot++)
+    {
+        const uint8 level     = PMaster->m_celestite.sets[set][slot];
+        const uint8 celestite = PMaster->m_celestite.sets[set][CelestiteSlots + slot];
+        if (level == 0 || level > 3 || celestite == 0)
+        {
+            continue; // UNVERIFIED: no values are known past slot level 3
+        }
+
+        for (const auto& effect : UnverifiedCelestiteEffects)
+        {
+            if (effect.celestite == celestite)
+            {
+                PTrust->addModifier(effect.mod, effect.bySlotLevel[level - 1]);
+            }
+        }
+    }
 }
 
 void ApplyAlterEgo(CTrustEntity* PTrust, const CCharEntity* PMaster)

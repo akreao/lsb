@@ -349,3 +349,43 @@ describe('Trust Ascension slot records', function()
         assert(player:getEminenceProgress(1093) == 0, 'counted a Lv.101 kill')
     end)
 end)
+
+describe('Trust Ascension effects', function()
+    local function summonedDefense(wearDefense)
+        local player = xi.test.world:spawnPlayer({ zone = xi.zone.RULUDE_GARDENS })
+        player:setLevel(99)
+        player:addKeyItem(xi.keyItem.CELESTITE_CASE)
+        player:addCelestite(xi.item.PIECE_OF_CELESTITE_DEFENSE)
+        player:setCelestiteSlotLevel(1, 1)
+        if wearDefense then
+            player:gotoMogHouse(xi.zone.RULUDE_GARDENS)
+            if player:isInEvent() then
+                player.events:finish()
+            end
+
+            local packet = ffi.new('uint8_t[16]')
+            packet[4]    = 1 -- Tank
+            packet[5]    = 4 -- Celestite (Defense)
+            player.packets:send(0x0C5, packet, ffi.sizeof(packet))
+        end
+
+        player:gotoZone(xi.zone.EAST_RONFAURE)
+        player:spawnTrust(xi.magic.spell.VALAINERAL)
+        xi.test.world:skipTime(1)
+
+        for _, member in ipairs(player:getPartyWithTrusts()) do
+            if member:isTrust() then
+                return member:getStat(xi.mod.DEF)
+            end
+        end
+
+        assert(false, 'trust was not summoned')
+    end
+
+    it('adds the unverified Defense value of a level 1 slot to a tank', function()
+        local without = summonedDefense(false)
+        local with    = summonedDefense(true)
+
+        assert(with - without == 70, string.format('expected +70 Defense, saw %d', with - without))
+    end)
+end)
