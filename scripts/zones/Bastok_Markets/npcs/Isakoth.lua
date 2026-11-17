@@ -3,6 +3,10 @@
 --  NPC: Isakoth
 -- Records of Eminence NPC
 -----------------------------------
+-- Retail starts Rolandienne's (Southern San d'Oria) events with Mode 0x1a: other players and the NPCs outside the event
+-- are not drawn. Inferred for this NPC from hers; no capture of this one yet.
+local eventMode = 0x1a
+
 ---@type TNpcEntity
 local entity = {}
 
@@ -12,13 +16,13 @@ end
 
 entity.onTrigger = function(player, npc)
     if player:getEminenceProgress(1) then
-        player:startEvent(24)
+        player:startEvent(24, { flags = eventMode })
     elseif not player:hasKeyItem(xi.keyItem.MEMORANDOLL) then
         player:startEvent(25)
     else
         player:triggerRoeEvent(xi.roeTrigger.TRIGGER_NPC)
         player:messageSpecial(zones[xi.zone.BASTOK_MARKETS].text.TURNING_IN_SPARKS)
-        xi.sparkshop.onTrigger(player, npc, 26)
+        xi.sparkshop.onTrigger(player, npc, 26, eventMode)
     end
 end
 
