@@ -77,6 +77,8 @@ zones[xi.zone.RULUDE_GARDENS] =
         OBTAINED_NUM_KEYITEMS            = 14885, -- Obtained key item: <number> <keyitem>!
         NOT_ACQUAINTED                   = 14887, -- I'm sorry, but I don't believe we're acquainted. Please leave me be.
         LEARNED_SECRET_TECHNIQUE         = 15113, -- You learned the secret technique of the bushin!
+        NEW_ROE_OBJECTIVE_AVAILABLE      = 15588, -- A new Records of Eminence objective is now available!
+        CELESTITE_CAN_BE_AFFIXED         = 15793, -- You can now affix <item> to your <keyitem>.
         COMMON_SENSE_SURVIVAL            = 15794, -- It appears that you have arrived at a new survival guide provided by the Adventurers' Mutual Aid Network. Common sense dictates that you should now be able to teleport here from similar tomes throughout the world.
         TEAR_IN_FABRIC_OF_SPACE          = 15977, -- There appears to be a tear in the fabric of space...
     },

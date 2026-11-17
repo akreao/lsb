@@ -191,6 +191,15 @@ local function isRepeatItemRewardException(items)
     return true
 end
 
+-- Deeds of heroism (monthly "Deeds" records). UNVERIFIED: message 795 is the client's deeds text; its place in the
+-- completion burst was not captured.
+local function giveDeeds(player, rewards)
+    if rewards['deeds'] ~= nil and type(rewards['deeds']) == 'number' then
+        player:addCurrency('deeds', rewards['deeds'])
+        player:messageBasic(xi.msg.basic.ROE_RECEIVE_DEEDS, rewards['deeds'], player:getCurrency('deeds'))
+    end
+end
+
 --[[ --------------------------------------------------------------------------
     Complete a record of eminence. This is for internal roe use only.
     For external calls use onRecordTrigger below. (see healing.lua for example)
@@ -244,6 +253,8 @@ local function completeRecord(player, record)
         player:addCapacityPoints(rewards['capacity'])
     end
 
+    giveDeeds(player, rewards)
+
     -- NOTE: To preserve retail order, messaging is here, but item is given if able at the beginning of this
     -- function, since if it fails, it will need to bail out.
     if canRewardItem then
@@ -283,6 +294,13 @@ local function completeRecord(player, record)
 
     if rewards['keyItem'] ~= nil then
         npcUtil.giveKeyItem(player, rewards['keyItem'])
+    end
+
+    -- Trust Ascension: { slot, level } for all six celestite sets. Retail sends no message for it, and one 0x08F
+    -- after the whole completion burst (sent by the core once the record event is done).
+    if rewards['celestiteSlot'] ~= nil then
+        player:setCelestiteSlotLevel(rewards['celestiteSlot'][1], rewards['celestiteSlot'][2])
+        player:queueCelestiteUpdate()
     end
 
     -- Workaround for Hidden Record #4085 (10 RoE Objectives Completed)

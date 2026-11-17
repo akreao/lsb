@@ -21,14 +21,34 @@
 
 #include "0x0c5_trust_ascension_equip_set.h"
 
+#include "data/enums/key_item.h"
+#include "entities/char_entity.h"
 #include "packets/c2s/validation.h"
+#include "packets/s2c/0x08f_trust_ascension_equip.h"
+#include "trust_ascension.h"
 
 auto GP_CLI_COMMAND_TRUST_ASCENSION_EQUIP_SET::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
 {
-    // TODO: Trust equipment is not implemented.
-    return PacketValidator(PChar);
+    // The client only offers changes in the Mog House (system message 0xB2 elsewhere) with the Celestite Case; the
+    // November 2026 update notes add "when your main job level is 99".
+    return PacketValidator(PChar)
+        .blockedBy({ BlockedState::InEvent, BlockedState::AbnormalStatus })
+        .range("Category", this->Category, 1, trustascension::CelestiteSets)
+        .isInMogHouse()
+        .hasKeyItem(xi::KeyItem::CelestiteCase)
+        .custom([&](PacketValidator& v)
+                {
+                    if (PChar->GetMLevel() < 99)
+                    {
+                        v.mustEqual(true, false, "Main job must be Level 99");
+                    }
+                });
 }
 
 void GP_CLI_COMMAND_TRUST_ASCENSION_EQUIP_SET::process(MapSession* PSession, CCharEntity* PChar) const
 {
+    // Retail answers each 0x0C5 with one 0x08F. Only accepted changes were seen; on a refused one this sends the
+    // unchanged sets back (UNVERIFIED) so the client shows what the server holds.
+    trustascension::SetCelestiteSet(PChar, this->Category, this->Slots);
+    PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP>(PChar);
 }

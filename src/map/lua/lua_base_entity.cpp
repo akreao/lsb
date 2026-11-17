@@ -66,6 +66,7 @@
 #include "status_effect_container.h"
 #include "timetriggers.h"
 #include "trade_container.h"
+#include "trust_ascension.h"
 #include "weapon_skill.h"
 #include "zone.h"
 
@@ -152,6 +153,7 @@
 #include "packets/s2c/0x075_battlefield.h"
 #include "packets/s2c/0x077_entity_vis.h"
 #include "packets/s2c/0x086_guild_open.h"
+#include "packets/s2c/0x08f_trust_ascension_equip.h"
 #include "packets/s2c/0x0aa_magic_data.h"
 #include "packets/s2c/0x0ac_command_data.h"
 #include "packets/s2c/0x0ae_mount_data.h"
@@ -9054,6 +9056,120 @@ auto CLuaBaseEntity::hasEminenceRecord(uint16 recordID) -> bool
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
     return roeutils::HasEminenceRecord(PChar, recordID);
+}
+
+/************************************************************************
+ *  Function: addEminenceGrowthRecord(record)
+ *  Purpose : Undertakes a growth objective (message 829, s2c 0x111 entry 42)
+ *  Example : player:addEminenceGrowthRecord(1067)
+ ************************************************************************/
+
+auto CLuaBaseEntity::addEminenceGrowthRecord(uint16 recordID) -> bool
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return false;
+    }
+
+    if (!settings::get<bool>("main.ENABLE_ROE"))
+    {
+        return false;
+    }
+
+    return roeutils::AddEminenceGrowthRecord(static_cast<CCharEntity*>(m_PBaseEntity), recordID);
+}
+
+/************************************************************************
+ *  Function: hasCelestite(itemId)
+ *  Purpose : Returns true if the celestite is registered (Trust Ascension)
+ *  Example : player:hasCelestite(xi.item.PIECE_OF_CELESTITE_DEFENSE)
+ ************************************************************************/
+
+auto CLuaBaseEntity::hasCelestite(uint16 itemId) -> bool
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return false;
+    }
+
+    return trustascension::HasCelestite(static_cast<CCharEntity*>(m_PBaseEntity), itemId);
+}
+
+/************************************************************************
+ *  Function: addCelestite(itemId)
+ *  Purpose : Registers a celestite (Trust Ascension). Sends nothing; see sendCelestite.
+ *  Example : player:addCelestite(xi.item.PIECE_OF_CELESTITE_DEFENSE)
+ ************************************************************************/
+
+void CLuaBaseEntity::addCelestite(uint16 itemId)
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return;
+    }
+
+    trustascension::AddCelestite(static_cast<CCharEntity*>(m_PBaseEntity), itemId);
+}
+
+/************************************************************************
+ *  Function: setCelestiteSlotLevel(slot, level)
+ *  Purpose : Sets a celestite slot's level (1-10, 0 closes it) in all six sets. Sends nothing; see sendCelestite.
+ *  Example : player:setCelestiteSlotLevel(1, 1)
+ ************************************************************************/
+
+void CLuaBaseEntity::setCelestiteSlotLevel(uint8 slot, uint8 level)
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return;
+    }
+
+    if (slot < 1 || slot > trustascension::CelestiteSlots)
+    {
+        ShowWarning("Invalid celestite slot %u.", slot);
+        return;
+    }
+
+    trustascension::SetCelestiteSlotLevel(static_cast<CCharEntity*>(m_PBaseEntity), slot - 1, level);
+}
+
+/************************************************************************
+ *  Function: sendCelestite()
+ *  Purpose : Sends the celestite block (s2c 0x08F)
+ *  Example : player:sendCelestite()
+ ************************************************************************/
+
+void CLuaBaseEntity::sendCelestite()
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return;
+    }
+
+    auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
+    PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP>(PChar);
+}
+
+/************************************************************************
+ *  Function: queueCelestiteUpdate()
+ *  Purpose : Sends one 0x08F when the current record event finishes (several records may change the sets)
+ *  Example : player:queueCelestiteUpdate()
+ ************************************************************************/
+
+void CLuaBaseEntity::queueCelestiteUpdate()
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return;
+    }
+
+    static_cast<CCharEntity*>(m_PBaseEntity)->m_celestitePending = true;
 }
 
 /************************************************************************
@@ -21116,7 +21232,13 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("getEminenceProgress", CLuaBaseEntity::getEminenceProgress);
     SOL_REGISTER("setEminenceProgress", CLuaBaseEntity::setEminenceProgress);
     SOL_REGISTER("hasEminenceRecord", CLuaBaseEntity::hasEminenceRecord);
+    SOL_REGISTER("addEminenceGrowthRecord", CLuaBaseEntity::addEminenceGrowthRecord);
     SOL_REGISTER("triggerRoeEvent", CLuaBaseEntity::triggerRoeEvent);
+    SOL_REGISTER("hasCelestite", CLuaBaseEntity::hasCelestite);
+    SOL_REGISTER("addCelestite", CLuaBaseEntity::addCelestite);
+    SOL_REGISTER("setCelestiteSlotLevel", CLuaBaseEntity::setCelestiteSlotLevel);
+    SOL_REGISTER("sendCelestite", CLuaBaseEntity::sendCelestite);
+    SOL_REGISTER("queueCelestiteUpdate", CLuaBaseEntity::queueCelestiteUpdate);
     SOL_REGISTER("setUnityLeader", CLuaBaseEntity::setUnityLeader);
     SOL_REGISTER("getUnityLeader", CLuaBaseEntity::getUnityLeader);
     SOL_REGISTER("getUnityRank", CLuaBaseEntity::getUnityRank);

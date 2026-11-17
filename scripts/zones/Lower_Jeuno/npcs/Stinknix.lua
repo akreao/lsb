@@ -15,6 +15,11 @@ entity.onTrigger = function(player, npc)
         { xi.item.CROSSBOW_BOLT,               6 },
         { xi.item.GRENADE,                  1204 },
         { xi.item.DUCHY_WAYSTONE,          10000 },
+        { xi.item.CELESTITE_ACC,           31740 }, -- Celestite: retail stock and prices (capture, 11/2026)
+        { xi.item.CELESTITE_EVASION,       31740 },
+        { xi.item.CELESTITE_ATTACK,        31740 },
+        { xi.item.CELESTITE_M_ATK,         31740 },
+        { xi.item.CELESTITE_M_DEF,         31740 },
     }
 
     player:showText(npc, zones[xi.zone.LOWER_JEUNO].text.JUNK_SHOP_DIALOG)

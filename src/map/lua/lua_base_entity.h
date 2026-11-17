@@ -459,7 +459,14 @@ public:
     auto setEminenceProgress(uint16 recordID, uint32 progress, const sol::object& arg2) -> bool;
     auto getEminenceProgress(uint16 recordID) -> Maybe<uint32>;
     auto hasEminenceRecord(uint16 recordID) -> bool;
+    auto addEminenceGrowthRecord(uint16 recordID) -> bool;
     void triggerRoeEvent(uint8 eventNum, const sol::object& reqTable);
+
+    auto hasCelestite(uint16 itemId) -> bool;
+    void addCelestite(uint16 itemId);
+    void setCelestiteSlotLevel(uint8 slot, uint8 level);
+    void sendCelestite();
+    void queueCelestiteUpdate();
     void setUnityLeader(uint8 leaderID);
     auto getUnityLeader() -> uint8;
     auto getUnityRank(const sol::object& unityObj) -> Maybe<uint8>;

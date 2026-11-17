@@ -152,6 +152,7 @@ void SetEminenceRecordCompletion(CCharEntity* PChar, uint16 recordID, bool newSt
 auto GetEminenceRecordCompletion(const CCharEntity* PChar, uint16 recordID) -> bool;
 auto GetNumEminenceCompleted(const CCharEntity* PChar) -> uint16;
 auto AddEminenceRecord(CCharEntity* PChar, uint16 recordID) -> bool;
+auto AddEminenceGrowthRecord(CCharEntity* PChar, uint16 recordID) -> bool; // Growth objective, s2c 0x111 entry 42
 auto DelEminenceRecord(CCharEntity* PChar, uint16 recordID) -> bool;
 auto HasEminenceRecord(const CCharEntity* PChar, uint16 recordID) -> bool;
 auto SetEminenceRecordProgress(CCharEntity* PChar, uint16 recordID, uint32 progress) -> bool;

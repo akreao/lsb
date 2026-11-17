@@ -27,11 +27,12 @@ class CCharEntity;
 
 struct trust_ascension_equip_category_t
 {
-    uint8_t Kind[10];     // Per slot, 0 = slot unavailable. Other values index a client label table (meaning unknown).
+    uint8_t Kind[10];     // Per slot level, 0 = slot unavailable. The client draws 1..15 as "Lv1".."Lv15".
     uint8_t Equipped[10]; // Item id - 29424 per slot, 0 = empty
 };
 
-// This packet is sent by the server with the player's Trust equipment, in reply to 0x0C5 and 0x0C6.
+// This packet is sent by the server with the player's Trust equipment: after every zone-in (right after 0x08E),
+// in reply to 0x0C5 and 0x0C6, and when the Celestite Case is granted.
 class GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP final : public GP_SERV_PACKET<PacketS2C::GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP, GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP>
 {
 public:

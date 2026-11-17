@@ -21,7 +21,17 @@
 
 #include "0x08f_trust_ascension_equip.h"
 
+#include "entities/char_entity.h"
+
+#include <cstring>
+
 GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP::GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP(const CCharEntity* PChar)
 {
-    // TODO: Trust equipment is not implemented.
+    auto& packet = this->data();
+
+    static_assert(sizeof(packet.Owned) == sizeof(PChar->m_celestite.owned));
+    static_assert(sizeof(packet.Categories) == sizeof(PChar->m_celestite.sets));
+
+    std::memcpy(packet.Owned, PChar->m_celestite.owned, sizeof(packet.Owned));
+    std::memcpy(packet.Categories, PChar->m_celestite.sets, sizeof(packet.Categories));
 }

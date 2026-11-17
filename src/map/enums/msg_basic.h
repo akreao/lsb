@@ -300,4 +300,5 @@ enum class MsgBasic : uint16_t
     ExemplarPointsGainedItem        = 822, // <player> gains # exemplar points.
     ExemplarPointsCampaignBonus     = 825, // <player> gains # bonus exemplar points as part of the active campaign. # points remaining.
     AlterEgoUpgrade                 = 828, // <category> attribute increased to #.
+    ROEGrowthStart                  = 829, // You have accepted the Records of Eminence growth objective <record>.
 };

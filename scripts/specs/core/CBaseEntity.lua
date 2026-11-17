@@ -1921,10 +1921,40 @@ end
 function CBaseEntity:hasEminenceRecord(recordID)
 end
 
+---@param recordID integer
+---@return boolean
+function CBaseEntity:addEminenceGrowthRecord(recordID)
+end
+
 ---@param eventNum integer
 ---@param reqTable table?
 ---@return nil
 function CBaseEntity:triggerRoeEvent(eventNum, reqTable)
+end
+
+---@nodiscard
+---@param itemId integer
+---@return boolean
+function CBaseEntity:hasCelestite(itemId)
+end
+
+---@param itemId integer
+---@return nil
+function CBaseEntity:addCelestite(itemId)
+end
+
+---@param slot integer
+---@param level integer
+---@return nil
+function CBaseEntity:setCelestiteSlotLevel(slot, level)
+end
+
+---@return nil
+function CBaseEntity:sendCelestite()
+end
+
+---@return nil
+function CBaseEntity:queueCelestiteUpdate()
 end
 
 ---@param leaderID integer

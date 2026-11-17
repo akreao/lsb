@@ -405,6 +405,7 @@ xi.msg.basic =
     USE_OBTAIN_ESCHA_SILT           = 765, -- <name> uses <item>. <name> obtains <n> escha silt.
     USE_OBTAIN_ESCHA_BEAD           = 766, -- <name> uses <item>. <name> obtains <n> escha beads.
     MOTE_OF_PARADISE                = 791, -- The <target> recieves <number> motes of paradise.
+    ROE_RECEIVE_DEEDS               = 795, -- You receive <amount> deed[/s] of heroism, for a total of <amount>!
     AUTO_OVERLOAD_CHANCE            = 798, -- The <pet>'s overload chance is <number>%.
     AUTO_OVERLOADED                 = 799, -- The <pet>'s overload chance is <number>%. The <pet> is overloaded!
     SPIRIT_BOND                     = 800, -- Spirit Bond Activates. <Player> takes <number> points of damage. -- Wyvern Spirit bond
