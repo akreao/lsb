@@ -72,8 +72,10 @@ constexpr std::array<UnverifiedCelestiteEffect, 4> UnverifiedCelestiteEffects{ {
 // The celestite set a trust uses (1 Tank .. 6 Support, 0 none) by trust spell id. NOT RETAIL SERVER DATA: built
 // from the client's trust spell icons (the HD list icon's shape is the role, per BG Wiki "Trust Icons Explained":
 // shield Tank, sword Melee Fighter, bow Ranged Fighter, staff Caster, club Healer, harp Support, pouch Special).
-// Special trusts (Sakura, Moogle, Star Sibyl, Kuyin Hathdenna, Brygid, Kupofried, Cornelia) get no set; BG Wiki
-// says support alter egos that do not fight receive no celestite effects.
+// UNVERIFIED, wiki-sourced rule: BG Wiki says "support alter egos that do not participate in battle" receive no
+// celestite effects. Read here as the pouch (Special) trusts (Sakura, Moogle, Star Sibyl, Kuyin Hathdenna, Brygid,
+// Kupofried, Cornelia), which get no set. Harp (Support) trusts fight and read set 6, the Support tab retail lets
+// players fill.
 auto CelestiteSetForTrust(uint32 trustSpellId) -> uint8;
 
 // The level cap of every attribute (client data: file 97 byte 3 = 0x3C).
