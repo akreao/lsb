@@ -635,7 +635,8 @@ function xi.sparkshop.onTrade(player, npc, trade, eventid)
     end
 end
 
-function xi.sparkshop.onTrigger(player, npc, event)
+-- flags: the event's Mode (0x034); nil sends LSB's default.
+function xi.sparkshop.onTrigger(player, npc, event, flags)
     local sparks = player:getCurrency('spark_of_eminence')
     local vouchers = player:getCurrency('aman_vouchers')
     local remainingLimit = xi.settings.main.WEEKLY_EXCHANGE_LIMIT - player:getCharVar('weekly_sparks_spent')
@@ -643,7 +644,14 @@ function xi.sparkshop.onTrigger(player, npc, event)
     local naakual = 0 -- TODO: Naakual Seven Treasures Item Logic
 
     -- opens shop and lists available sparks
-    player:startEvent(event, 0, sparks, vouchers, naakual, cipher, remainingLimit)
+    player:startEvent(event, {
+        [1] = sparks,
+        [2] = vouchers,
+        [3] = naakual,
+        [4] = cipher,
+        [5] = remainingLimit,
+        flags = flags,
+    })
 end
 
 function xi.sparkshop.onEventUpdate(player, csid, option, npc)
