@@ -285,6 +285,13 @@ local function completeRecord(player, record)
         npcUtil.giveKeyItem(player, rewards['keyItem'])
     end
 
+    -- Trust Ascension: { slot, level } for all six celestite sets. Retail sends no message for it, and one 0x08F
+    -- after the whole completion burst (sent by the core once the record event is done).
+    if rewards['celestiteSlot'] ~= nil then
+        player:setCelestiteSlotLevel(rewards['celestiteSlot'][1], rewards['celestiteSlot'][2])
+        player:queueCelestiteUpdate()
+    end
+
     -- Workaround for Hidden Record #4085 (10 RoE Objectives Completed)
     if
         not player:getEminenceCompleted(4085) and

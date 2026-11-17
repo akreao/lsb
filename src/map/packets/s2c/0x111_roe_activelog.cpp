@@ -38,4 +38,7 @@ GP_SERV_COMMAND_ROE_ACTIVELOG::GP_SERV_COMMAND_ROE_ACTIVELOG(const CCharEntity* 
         const int    c_offset    = i < 30 ? i : 63; // The time-limited record is a special case, it goes at the end (index 63).
         packet.records[c_offset] = record_t{ .Id = id, .Count = progress };
     }
+
+    // The growth objective (e.g. 1067 after Job Breaker) sits in entry 42 in retail.
+    packet.records[42] = record_t{ .Id = PChar->m_eminenceLog.growth, .Count = PChar->m_eminenceLog.growthProgress };
 }

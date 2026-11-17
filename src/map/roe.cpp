@@ -33,7 +33,9 @@
 #include "packets/s2c/0x0aa_magic_data.h"
 #include "packets/s2c/0x111_roe_activelog.h"
 #include "packets/s2c/0x112_roe_log.h"
+#include "trust_ascension.h"
 
+#include <array>
 #include <bit>
 
 #define ROE_CACHETIME 15s
@@ -260,15 +262,25 @@ auto event(const ROE_EVENT eventID, CCharEntity* PChar, const RoeDatagramList& p
         return false;
     }
 
-    // Call onRecordTrigger for each record of this type
-    for (int i = 0; i < 31; i++)
+    // Call onRecordTrigger for each record of this type. Walk a copy: a record that completes is removed and the
+    // entries behind it shift up, which would skip the next record (retail completes both when one kill finishes
+    // two records, e.g. Trust Ascension 1093 and 1102).
+    const auto active = std::to_array(PChar->m_eminenceLog.active);
+    for (const uint16 recordID : active)
     {
         // Check record is of this type
-        if (uint16 recordID = PChar->m_eminenceLog.active[i]; handler.bitmap.test(recordID))
+        if (handler.bitmap.test(recordID))
         {
             call_onRecordTrigger(PChar, recordID, payload);
         }
     }
+
+    if (const uint16 recordID = PChar->m_eminenceLog.growth; recordID && handler.bitmap.test(recordID))
+    {
+        call_onRecordTrigger(PChar, recordID, payload);
+    }
+
+    trustascension::FlushPendingCelestite(PChar);
 
     return true;
 }
@@ -388,9 +400,40 @@ auto AddEminenceRecord(CCharEntity* PChar, uint16 recordID) -> bool
     return false;
 }
 
+auto AddEminenceGrowthRecord(CCharEntity* PChar, const uint16 recordID) -> bool
+{
+    TracyZoneScoped;
+
+    if (!RoeSystem.ImplementedRecords.test(recordID) || PChar->m_eminenceLog.growth != 0 || HasEminenceRecord(PChar, recordID))
+    {
+        return false;
+    }
+
+    PChar->m_eminenceLog.growth         = recordID;
+    PChar->m_eminenceLog.growthProgress = 0;
+    PChar->m_eminenceCache.activemap.set(recordID);
+
+    // Retail: message 829 first, then the active list with the record in entry 42.
+    PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, recordID, 0, MsgBasic::ROEGrowthStart);
+    PChar->pushPacket<GP_SERV_COMMAND_ROE_ACTIVELOG>(PChar);
+    charutils::SaveEminenceData(PChar);
+
+    return true;
+}
+
 auto DelEminenceRecord(CCharEntity* PChar, const uint16 recordID) -> bool
 {
     TracyZoneScoped;
+
+    if (recordID != 0 && PChar->m_eminenceLog.growth == recordID)
+    {
+        PChar->m_eminenceLog.growth         = 0;
+        PChar->m_eminenceLog.growthProgress = 0;
+        PChar->m_eminenceCache.activemap.reset(recordID);
+        PChar->pushPacket<GP_SERV_COMMAND_ROE_ACTIVELOG>(PChar);
+        charutils::SaveEminenceData(PChar);
+        return true;
+    }
 
     for (int i = 0; i < 30; i++)
     {
@@ -424,6 +467,11 @@ auto GetEminenceRecordProgress(const CCharEntity* PChar, const uint16 recordID) 
 {
     TracyZoneScoped;
 
+    if (recordID != 0 && PChar->m_eminenceLog.growth == recordID)
+    {
+        return PChar->m_eminenceLog.growthProgress;
+    }
+
     for (int i = 0; i < 31; i++)
     {
         if (PChar->m_eminenceLog.active[i] == recordID)
@@ -437,6 +485,17 @@ auto GetEminenceRecordProgress(const CCharEntity* PChar, const uint16 recordID) 
 auto SetEminenceRecordProgress(CCharEntity* PChar, const uint16 recordID, const uint32 progress) -> bool
 {
     TracyZoneScoped;
+
+    if (recordID != 0 && PChar->m_eminenceLog.growth == recordID)
+    {
+        if (PChar->m_eminenceLog.growthProgress != progress)
+        {
+            PChar->m_eminenceLog.growthProgress = progress;
+            PChar->pushPacket<GP_SERV_COMMAND_ROE_ACTIVELOG>(PChar);
+            SaveEminenceDataNice(PChar);
+        }
+        return true;
+    }
 
     for (int i = 0; i < 31; i++)
     {
@@ -504,6 +563,11 @@ void onCharLoad(CCharEntity* PChar)
         {
             PChar->m_eminenceCache.activemap.set(record);
         }
+    }
+
+    if (PChar->m_eminenceLog.growth)
+    {
+        PChar->m_eminenceCache.activemap.set(PChar->m_eminenceLog.growth);
     }
 
     // Only chars with First Step Forward complete can get timed/daily records
@@ -574,6 +638,7 @@ auto onRecordClaim(CCharEntity* PChar, const uint16 recordID) -> bool
     if (roeutils::HasEminenceRecord(PChar, recordID))
     {
         call_onRecordTrigger(PChar, recordID, RoeDatagramList{ RoeDatagram("claim", 1) });
+        trustascension::FlushPendingCelestite(PChar);
         return true;
     }
     return false;

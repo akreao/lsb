@@ -9059,6 +9059,28 @@ auto CLuaBaseEntity::hasEminenceRecord(uint16 recordID) -> bool
 }
 
 /************************************************************************
+ *  Function: addEminenceGrowthRecord(record)
+ *  Purpose : Undertakes a growth objective (message 829, s2c 0x111 entry 42)
+ *  Example : player:addEminenceGrowthRecord(1067)
+ ************************************************************************/
+
+auto CLuaBaseEntity::addEminenceGrowthRecord(uint16 recordID) -> bool
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return false;
+    }
+
+    if (!settings::get<bool>("main.ENABLE_ROE"))
+    {
+        return false;
+    }
+
+    return roeutils::AddEminenceGrowthRecord(static_cast<CCharEntity*>(m_PBaseEntity), recordID);
+}
+
+/************************************************************************
  *  Function: hasCelestite(itemId)
  *  Purpose : Returns true if the celestite is registered (Trust Ascension)
  *  Example : player:hasCelestite(xi.item.PIECE_OF_CELESTITE_DEFENSE)
@@ -9131,6 +9153,23 @@ void CLuaBaseEntity::sendCelestite()
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
     PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP>(PChar);
+}
+
+/************************************************************************
+ *  Function: queueCelestiteUpdate()
+ *  Purpose : Sends one 0x08F when the current record event finishes (several records may change the sets)
+ *  Example : player:queueCelestiteUpdate()
+ ************************************************************************/
+
+void CLuaBaseEntity::queueCelestiteUpdate()
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return;
+    }
+
+    static_cast<CCharEntity*>(m_PBaseEntity)->m_celestitePending = true;
 }
 
 /************************************************************************
@@ -21193,11 +21232,13 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("getEminenceProgress", CLuaBaseEntity::getEminenceProgress);
     SOL_REGISTER("setEminenceProgress", CLuaBaseEntity::setEminenceProgress);
     SOL_REGISTER("hasEminenceRecord", CLuaBaseEntity::hasEminenceRecord);
+    SOL_REGISTER("addEminenceGrowthRecord", CLuaBaseEntity::addEminenceGrowthRecord);
     SOL_REGISTER("triggerRoeEvent", CLuaBaseEntity::triggerRoeEvent);
     SOL_REGISTER("hasCelestite", CLuaBaseEntity::hasCelestite);
     SOL_REGISTER("addCelestite", CLuaBaseEntity::addCelestite);
     SOL_REGISTER("setCelestiteSlotLevel", CLuaBaseEntity::setCelestiteSlotLevel);
     SOL_REGISTER("sendCelestite", CLuaBaseEntity::sendCelestite);
+    SOL_REGISTER("queueCelestiteUpdate", CLuaBaseEntity::queueCelestiteUpdate);
     SOL_REGISTER("setUnityLeader", CLuaBaseEntity::setUnityLeader);
     SOL_REGISTER("getUnityLeader", CLuaBaseEntity::getUnityLeader);
     SOL_REGISTER("getUnityRank", CLuaBaseEntity::getUnityRank);

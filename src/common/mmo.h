@@ -305,6 +305,8 @@ struct eminencelog_t
     uint16 active[31]; // slot 31 is for time-limited records
     uint32 progress[31];
     uint8  complete[512]; // bitmap of all 4096 possible records.
+    uint16 growth;        // the growth objective (s2c 0x111 entry 42), appended so older blobs still load
+    uint32 growthProgress;
 };
 
 struct eminencecache_t

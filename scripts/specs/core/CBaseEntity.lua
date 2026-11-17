@@ -1921,6 +1921,11 @@ end
 function CBaseEntity:hasEminenceRecord(recordID)
 end
 
+---@param recordID integer
+---@return boolean
+function CBaseEntity:addEminenceGrowthRecord(recordID)
+end
+
 ---@param eventNum integer
 ---@param reqTable table?
 ---@return nil
@@ -1946,6 +1951,10 @@ end
 
 ---@return nil
 function CBaseEntity:sendCelestite()
+end
+
+---@return nil
+function CBaseEntity:queueCelestiteUpdate()
 end
 
 ---@param leaderID integer

@@ -20,6 +20,23 @@ local abysseaZones = set{
     xi.zone.ABYSSEA_EMPYREAL_PARADOX,
 }
 
+-- Trust Ascension slot records: a defeated enemy of at least reqs.mobMinLevel, in a party holding at least
+-- reqs.alterEgos alter egos.
+local trustAscensionCheck = function(self, player, params)
+    if not params.mob or params.mob:getMainLvl() < self.reqs.mobMinLevel then
+        return false
+    end
+
+    local alterEgos = 0
+    for _, member in ipairs(player:getPartyWithTrusts()) do
+        if member:isTrust() then
+            alterEgos = alterEgos + 1
+        end
+    end
+
+    return alterEgos >= self.reqs.alterEgos
+end
+
 -- The region of each nation's capital.
 local nationCapitals =
 {
@@ -219,6 +236,68 @@ xi.roe.records =
             sparks = 200,
             exp = 300,
             item = { xi.item.CIPHER_OF_KORU_MORUS_ALTER_EGO }
+        }
+    },
+
+    -----------------------------------
+    -- Trust Ascension slots: defeat 10 enemies of a minimum level in a party with alter egos. Name, text, goal and
+    -- rewards from the client's objective records; retail captures confirm all five (taken by hand, one kill counts
+    -- for every one held, completion opens / raises the slot in all six sets with one 0x08F and no other message;
+    -- end state slot 1 Lv3, slot 2 Lv2, slot 3 Lv1).
+    -----------------------------------
+
+    [1093] =
+    { -- Trust Ascension Slot 1
+        trigger = xi.roeTrigger.DEFEAT_MOB,
+        goal = 10,
+        check = trustAscensionCheck,
+        reqs = { mobMinLevel = 102, alterEgos = 1 },
+        reward = { sparks = 100, exp = 1000, capacity = 500, celestiteSlot = { 2, 1 } },
+    },
+
+    [1094] =
+    { -- Trust Ascension Slot 2
+        trigger = xi.roeTrigger.DEFEAT_MOB,
+        goal = 10,
+        check = trustAscensionCheck,
+        reqs = { mobMinLevel = 104, alterEgos = 2 },
+        reward = { sparks = 100, exp = 2000, capacity = 1000, celestiteSlot = { 3, 1 } },
+    },
+
+    [1102] =
+    { -- Trust Ascension Slot 1: Lv.2
+        trigger = xi.roeTrigger.DEFEAT_MOB,
+        goal = 10,
+        check = trustAscensionCheck,
+        reqs = { mobMinLevel = 101, alterEgos = 1 },
+        reward = { sparks = 100, exp = 1100, capacity = 600, celestiteSlot = { 1, 2 } },
+    },
+
+    [1103] =
+    { -- Trust Ascension Slot 1: Lv.3
+        trigger = xi.roeTrigger.DEFEAT_MOB,
+        goal = 10,
+        check = trustAscensionCheck,
+        reqs = { mobMinLevel = 102, alterEgos = 1 },
+        reward = { sparks = 100, exp = 1200, capacity = 700, celestiteSlot = { 1, 3 } },
+    },
+
+    [1109] =
+    { -- Trust Ascension Slot 2: Lv.2
+        trigger = xi.roeTrigger.DEFEAT_MOB,
+        goal = 10,
+        check = trustAscensionCheck,
+        reqs = { mobMinLevel = 103, alterEgos = 1 },
+        reward = { sparks = 100, exp = 1100, capacity = 600, celestiteSlot = { 2, 2 } },
+    },
+
+    [1067] =
+    { -- Unlocking Alter Ego Points (growth objective: undertaken on receiving Job Breaker, completed by Syndella)
+        reward =
+        {
+            sparks = 100,
+            exp = 300,
+            item = { xi.item.TRUST_MAGIC_TOME },
         }
     },
 

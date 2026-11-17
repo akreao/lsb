@@ -36,6 +36,12 @@ auto GP_CLI_COMMAND_ROE_REMOVE::validate(MapSession* PSession, const CCharEntity
 
 void GP_CLI_COMMAND_ROE_REMOVE::process(MapSession* PSession, CCharEntity* PChar) const
 {
+    // The client offers no removal for the growth objective (entry 42, like the timed record).
+    if (this->ObjectiveId != 0 && this->ObjectiveId == PChar->m_eminenceLog.growth)
+    {
+        return;
+    }
+
     roeutils::DelEminenceRecord(PChar, this->ObjectiveId);
     PChar->pushPacket<GP_SERV_COMMAND_UNITY>(PChar);
 }

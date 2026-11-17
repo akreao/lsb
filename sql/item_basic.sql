@@ -23693,6 +23693,11 @@ INSERT INTO `item_basic` VALUES (29428,0,'piece_of_celestite_defense','celestite
 INSERT INTO `item_basic` VALUES (29429,0,'piece_of_celestite_magic_atk.','celestite_m._atk.','魔攻のセレスタイト',@TRUST_EQUIPMENT_TYPE,1,0,@NONE,0);  -- TODO: Verify AH category, Verify NPC sale price
 INSERT INTO `item_basic` VALUES (29430,0,'piece_of_celestite_magic_def.','celestite_m._def.','魔防のセレスタイト',@TRUST_EQUIPMENT_TYPE,1,0,@NONE,0);  -- TODO: Verify AH category, Verify NPC sale price
 INSERT INTO `item_basic` VALUES (29695,0,'mangled_mess','mangled_mess','？？？',@GENERAL_TYPE,1,@FLAG_NOAUCTION | @FLAG_NOSALE | @FLAG_NODELIVERY,@NONE,0);
+INSERT INTO `item_basic` VALUES (30720,0,'piece_of_celestite_acc.','celestite_acc.','命中のセレスタイト',@GENERAL_TYPE,1,@FLAG_GM_ONLY | @FLAG_NOAUCTION | @FLAG_NODELIVERY | @FLAG_EX | @FLAG_RARE,@NONE,0); -- Flags as the client DAT (0xe042); sold by Stinknix, registered by Syndella
+INSERT INTO `item_basic` VALUES (30721,0,'piece_of_celestite_evasion','celestite_evasion','回避のセレスタイト',@GENERAL_TYPE,1,@FLAG_GM_ONLY | @FLAG_NOAUCTION | @FLAG_NODELIVERY | @FLAG_EX | @FLAG_RARE,@NONE,0); -- Flags as the client DAT (0xe042); sold by Stinknix, registered by Syndella
+INSERT INTO `item_basic` VALUES (30722,0,'piece_of_celestite_attack','celestite_attack','攻撃のセレスタイト',@GENERAL_TYPE,1,@FLAG_GM_ONLY | @FLAG_NOAUCTION | @FLAG_NODELIVERY | @FLAG_EX | @FLAG_RARE,@NONE,0); -- Flags as the client DAT (0xe042); sold by Stinknix, registered by Syndella
+INSERT INTO `item_basic` VALUES (30724,0,'piece_of_celestite_m._atk.','celestite_m._atk.','魔攻のセレスタイト',@GENERAL_TYPE,1,@FLAG_GM_ONLY | @FLAG_NOAUCTION | @FLAG_NODELIVERY | @FLAG_EX | @FLAG_RARE,@NONE,0); -- Flags as the client DAT (0xe042); sold by Stinknix, registered by Syndella
+INSERT INTO `item_basic` VALUES (30725,0,'piece_of_celestite_m._def.','celestite_m._def.','魔防のセレスタイト',@GENERAL_TYPE,1,@FLAG_GM_ONLY | @FLAG_NOAUCTION | @FLAG_NODELIVERY | @FLAG_EX | @FLAG_RARE,@NONE,0); -- Flags as the client DAT (0xe042); sold by Stinknix, registered by Syndella
 INSERT INTO `item_basic` VALUES (65535,0,'gil','gil','ギル',@CURRENCY_TYPE,0,0,@NONE,0);
 /*!40000 ALTER TABLE `item_basic` ENABLE KEYS */;
 UNLOCK TABLES;
