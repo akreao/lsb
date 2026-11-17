@@ -21,16 +21,25 @@ local celestiteRegistered =
 }
 
 entity.onTrade = function(player, npc, trade)
-    if
-        trade:getItemCount() ~= 1 or
-        not player:hasKeyItem(xi.keyItem.CELESTITE_CASE)
-    then
+    if not player:hasKeyItem(xi.keyItem.CELESTITE_CASE) then
         return
     end
 
-    local itemId     = trade:getItemId(0)
-    local registered = celestiteRegistered[itemId]
-    if not registered or not npcUtil.tradeHasExactly(trade, itemId) then
+    -- November 2026 update notes: "Even if you trade multiple celestite items at the same time, only one can be
+    -- registered within the UI per trade." UNVERIFIED which one: the first celestite in the trade window is taken
+    -- and the rest stay with the player. Retail was captured with single trades only.
+    local itemId     = 0
+    local registered = nil
+    for slot = 0, trade:getSlotCount() - 1 do
+        local id = trade:getItemId(slot)
+        if celestiteRegistered[id] then
+            itemId     = id
+            registered = celestiteRegistered[id]
+            break
+        end
+    end
+
+    if not registered then
         return
     end
 
@@ -41,6 +50,7 @@ entity.onTrade = function(player, npc, trade)
         return
     end
 
+    trade:confirmItem(itemId, 1)
     player:confirmTrade()
     player:addCelestite(registered)
     player:sendCelestite()

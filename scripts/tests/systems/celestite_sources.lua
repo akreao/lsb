@@ -22,6 +22,19 @@ describe('Celestite sources', function()
         player.assert.no:hasItem(xi.item.CELESTITE_ATTACK)
     end)
 
+    it('registers only one of several celestite traded together', function()
+        player:addItem(xi.item.CELESTITE_ATTACK)
+        player:addItem(xi.item.CELESTITE_M_ATK)
+        player.actions:tradeNpc('Syndella', { xi.item.CELESTITE_ATTACK, xi.item.CELESTITE_M_ATK }, { eventId = 10309, finishOption = 1 })
+
+        local registered = (player:hasCelestite(xi.item.PIECE_OF_CELESTITE_ATTACK) and 1 or 0) +
+            (player:hasCelestite(xi.item.PIECE_OF_CELESTITE_MAGIC_ATK) and 1 or 0)
+        assert(registered == 1, string.format('expected one registered, saw %d', registered))
+
+        local kept = (player:hasItem(xi.item.CELESTITE_ATTACK) and 1 or 0) + (player:hasItem(xi.item.CELESTITE_M_ATK) and 1 or 0)
+        assert(kept == 1, string.format('expected one celestite item kept, saw %d', kept))
+    end)
+
     it('keeps a celestite that is already registered', function()
         player:addCelestite(xi.item.PIECE_OF_CELESTITE_ATTACK)
         player:addItem(xi.item.CELESTITE_ATTACK)
