@@ -33,7 +33,7 @@ describe('Rolandienne event mode', function()
         -- Records of Eminence record 1, taken with 0x10C as the client does.
         local record = ffi.new('uint8_t[8]')
         record[4] = 1
-        player.packets:send(0x10C, record, ffi.sizeof(record))
+        player.packets:send(0x10C, record, assert(ffi.sizeof(record)))
         assert(player:getEminenceProgress(1) ~= nil, 'Record 1 is not active')
 
         talk(player)
