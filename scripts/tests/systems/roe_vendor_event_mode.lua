@@ -25,6 +25,7 @@ local vendors =
     { name = 'Rolandienne',    zone = xi.zone.SOUTHERN_SAN_DORIA, intro = 993, exchange = 995 },
     { name = 'Isakoth',        zone = xi.zone.BASTOK_MARKETS,     intro = 24,  exchange = 26,  zoneIn = 22  },
     { name = 'Fhelm_Jobeizat', zone = xi.zone.WINDURST_WOODS,     intro = 848, exchange = 850, zoneIn = 839 },
+    { name = 'Eternal_Flame',  zone = xi.zone.WESTERN_ADOULIN,    intro = 5079, exchange = 5081 },
 }
 
 -- A test character in Bastok Markets or Windurst Woods arrives in a Mog House exit event; expect() finishes it.
