@@ -6,6 +6,10 @@
 -----------------------------------
 local ID = zones[xi.zone.WINDURST_WOODS]
 -----------------------------------
+-- Retail starts Rolandienne's (Southern San d'Oria) events with Mode 0x1a: other players and the NPCs outside the event
+-- are not drawn. Inferred for this NPC from hers; no capture of this one yet.
+local eventMode = 0x1a
+
 ---@type TNpcEntity
 local entity = {}
 
@@ -15,13 +19,13 @@ end
 
 entity.onTrigger = function(player, npc)
     if player:getEminenceProgress(1) then
-        player:startEvent(848, 0, player:getGil())
+        player:startEvent(848, { [1] = player:getGil(), flags = eventMode })
     elseif not player:hasKeyItem(xi.keyItem.MEMORANDOLL) then
         player:startEvent(849)
     else
         player:triggerRoeEvent(xi.roeTrigger.TRIGGER_NPC)
         player:messageSpecial(ID.text.TRRRADE_IN_SPARKS)
-        xi.sparkshop.onTrigger(player, npc, 850)
+        xi.sparkshop.onTrigger(player, npc, 850, eventMode)
     end
 end
 

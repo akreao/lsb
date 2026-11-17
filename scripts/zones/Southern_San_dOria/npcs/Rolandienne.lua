@@ -5,6 +5,9 @@
 -----------------------------------
 local ID = zones[xi.zone.SOUTHERN_SAN_DORIA]
 -----------------------------------
+-- Retail starts this NPC's events with Mode 0x1a: other players and the NPCs outside the event are not drawn.
+local eventMode = 0x1a
+
 ---@type TNpcEntity
 local entity = {}
 
@@ -14,13 +17,13 @@ end
 
 entity.onTrigger = function(player, npc)
     if player:getEminenceProgress(1) then
-        player:startEvent(993)
+        player:startEvent(993, { flags = eventMode })
     elseif not player:hasKeyItem(xi.keyItem.MEMORANDOLL) then
         player:startEvent(994)
     else
         player:triggerRoeEvent(xi.roeTrigger.TRIGGER_NPC)
         player:messageSpecial(ID.text.YOU_WISH_TO_EXCHANGE_SPARKS)
-        xi.sparkshop.onTrigger(player, npc, 995)
+        xi.sparkshop.onTrigger(player, npc, 995, eventMode)
     end
 end
 
