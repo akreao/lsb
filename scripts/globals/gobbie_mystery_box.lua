@@ -333,6 +333,7 @@ xi.gobbieMysteryBox.onEventUpdate = function(player, csid, option, events)
                         if dial == 6 then
                             xi.gobbieMysteryBox.countSpecialDial(player)
                         end
+
                         player:setCurrency('daily_tally', dailyTallyPoints - dialCost)
                         if dialMask then
                             player:setCharVar('gobbieBoxUsed', utils.mask.setBit(gobbieBoxUsed, dialMask, true))
