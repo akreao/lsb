@@ -3277,6 +3277,9 @@ void RejectedFishingAction(CCharEntity* PChar, const GP_CLI_COMMAND_FISHING_2_MO
     }
 }
 
+namespace
+{
+
 // How long a fishing status may stand before the server ends it on its own.
 auto FishingStatusLimit(const CCharEntity* PChar) -> timer::duration
 {
@@ -3293,6 +3296,8 @@ auto FishingStatusLimit(const CCharEntity* PChar) -> timer::duration
             return 30s;
     }
 }
+
+} // namespace
 
 // The client sends each fishing step once. When one never arrives, the angler would stay in a fishing status
 // for good, unable to move or log out, so a status that outlives its step is ended here.
