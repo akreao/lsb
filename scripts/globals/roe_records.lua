@@ -241,9 +241,9 @@ xi.roe.records =
 
     -----------------------------------
     -- Trust Ascension slots: defeat 10 enemies of a minimum level in a party with alter egos. Name, text, goal and
-    -- rewards from the client's objective records. A retail capture confirms 1093 and 1102 (taken by hand, one
-    -- kill counts for both, completion opens / raises the slot in all six sets with one 0x08F). 1094, 1103 and 1109
-    -- were taken but never finished there: their slot changes follow the record text only.
+    -- rewards from the client's objective records; retail captures confirm all five (taken by hand, one kill counts
+    -- for every one held, completion opens / raises the slot in all six sets with one 0x08F and no other message;
+    -- end state slot 1 Lv3, slot 2 Lv2, slot 3 Lv1).
     -----------------------------------
 
     [1093] =

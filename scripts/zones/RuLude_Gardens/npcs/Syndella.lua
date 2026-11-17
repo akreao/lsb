@@ -9,6 +9,45 @@ local ID = zones[xi.zone.RULUDE_GARDENS]
 ---@type TNpcEntity
 local entity = {}
 
+-- Celestite registered by trade (retail capture): one Celestite item 0x7800+n becomes registered celestite 0x72F1+n
+-- at once (0x08F before the event), then event 10309 with [registered id, 1]; option 1 shows 15793.
+local celestiteRegistered =
+{
+    [xi.item.CELESTITE_ACC    ] = xi.item.PIECE_OF_CELESTITE_ACCURACY,
+    [xi.item.CELESTITE_EVASION] = xi.item.PIECE_OF_CELESTITE_EVASION,
+    [xi.item.CELESTITE_ATTACK ] = xi.item.PIECE_OF_CELESTITE_ATTACK,
+    [xi.item.CELESTITE_M_ATK  ] = xi.item.PIECE_OF_CELESTITE_MAGIC_ATK,
+    [xi.item.CELESTITE_M_DEF  ] = xi.item.PIECE_OF_CELESTITE_MAGIC_DEF,
+}
+
+entity.onTrade = function(player, npc, trade)
+    if
+        trade:getItemCount() ~= 1 or
+        not player:hasKeyItem(xi.keyItem.CELESTITE_CASE)
+    then
+        return
+    end
+
+    local itemId     = trade:getItemId(0)
+    local registered = celestiteRegistered[itemId]
+    if not registered or not npcUtil.tradeHasExactly(trade, itemId) then
+        return
+    end
+
+    -- UNVERIFIED: an already registered celestite was not traded in the capture. The event script answers param 1
+    -- = 2 with "you already have one affixed"; the item is kept.
+    if player:hasCelestite(registered) then
+        player:startEvent(10309, registered, 2)
+        return
+    end
+
+    player:confirmTrade()
+    player:addCelestite(registered)
+    player:sendCelestite()
+    player:setLocalVar('SyndellaCelestite', registered)
+    player:startEvent(10309, registered, 1)
+end
+
 entity.onTrigger = function(player, npc)
     -- UNVERIFIED condition: 10301 says the player cannot use Trust magic yet; not captured.
     if not xi.trust.hasPermit(player) then
@@ -37,6 +76,13 @@ entity.onEventFinish = function(player, csid, option, npc)
         -- Completes the growth objective undertaken with Job Breaker (messages 690, 707, 371, 693).
         if player:hasEminenceRecord(1067) then
             xi.roe.onRecordTrigger(player, 1067)
+        end
+
+    elseif csid == 10309 then
+        local registered = player:getLocalVar('SyndellaCelestite')
+        player:setLocalVar('SyndellaCelestite', 0)
+        if option == 1 and registered ~= 0 then
+            player:messageSpecial(ID.text.CELESTITE_CAN_BE_AFFIXED, registered, xi.keyItem.CIPHER_BRACELET)
         end
 
     elseif csid == 10308 and option == 1 then
