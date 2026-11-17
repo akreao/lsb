@@ -21,14 +21,17 @@
 
 #include "0x0c6_trust_ascension_equip_req.h"
 
+#include "entities/char_entity.h"
 #include "packets/c2s/validation.h"
+#include "packets/s2c/0x08f_trust_ascension_equip.h"
 
 auto GP_CLI_COMMAND_TRUST_ASCENSION_EQUIP_REQ::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
 {
-    // TODO: Trust equipment is not implemented.
     return PacketValidator(PChar);
 }
 
 void GP_CLI_COMMAND_TRUST_ASCENSION_EQUIP_REQ::process(MapSession* PSession, CCharEntity* PChar) const
 {
+    // Never seen from retail (0x08F always came first after zoning); answered with the same block.
+    PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP>(PChar);
 }

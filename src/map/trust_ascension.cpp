@@ -31,6 +31,8 @@
 #include "packets/s2c/0x08e_trust_ascension_points.h"
 #include "utils/charutils.h"
 
+#include <cstring>
+
 namespace trustascension
 {
 
@@ -46,13 +48,103 @@ auto AlterEgoCost(const uint8 level) -> uint16
 
 void Load(CCharEntity* PChar)
 {
-    PChar->m_alterEgo = {};
+    PChar->m_alterEgo  = {};
+    PChar->m_celestite = {};
 
-    const auto rset = db::preparedStmt("SELECT alter_ego FROM char_trust_ascension WHERE charid = ? LIMIT 1", PChar->id);
+    const auto rset = db::preparedStmt("SELECT alter_ego, celestite FROM char_trust_ascension WHERE charid = ? LIMIT 1", PChar->id);
     if (rset && rset->rowsCount() && rset->next())
     {
         db::extractFromBlob(rset, "alter_ego", PChar->m_alterEgo);
+        db::extractFromBlob(rset, "celestite", PChar->m_celestite);
     }
+}
+
+void SaveCelestite(const CCharEntity* PChar)
+{
+    db::preparedStmt("INSERT INTO char_trust_ascension (charid, celestite) VALUES (?, ?) "
+                     "ON DUPLICATE KEY UPDATE celestite = VALUES(celestite)",
+                     PChar->id,
+                     PChar->m_celestite);
+}
+
+auto HasCelestite(const CCharEntity* PChar, const uint16 itemId) -> bool
+{
+    if (itemId <= CelestiteItemBase || itemId > CelestiteItemBase + 0xFF)
+    {
+        return false;
+    }
+
+    const uint8 n = static_cast<uint8>(itemId - CelestiteItemBase);
+    return (PChar->m_celestite.owned[n / 32] >> (n % 32)) & 1;
+}
+
+void AddCelestite(CCharEntity* PChar, const uint16 itemId)
+{
+    if (itemId <= CelestiteItemBase || itemId > CelestiteItemBase + 0xFF)
+    {
+        return;
+    }
+
+    const uint8 n = static_cast<uint8>(itemId - CelestiteItemBase);
+    PChar->m_celestite.owned[n / 32] |= 1u << (n % 32);
+    SaveCelestite(PChar);
+}
+
+void SetCelestiteSlotLevel(CCharEntity* PChar, const uint8 slot, const uint8 level)
+{
+    if (slot >= CelestiteSlots)
+    {
+        return;
+    }
+
+    for (uint8 set = 1; set <= CelestiteSets; set++)
+    {
+        PChar->m_celestite.sets[set][slot] = level;
+
+        // UNVERIFIED: what retail does with a celestite in a slot that closes was not seen.
+        if (level == 0)
+        {
+            PChar->m_celestite.sets[set][CelestiteSlots + slot] = 0;
+        }
+    }
+
+    SaveCelestite(PChar);
+}
+
+auto SetCelestiteSet(CCharEntity* PChar, const uint8 set, const uint8 (&slots)[CelestiteSlots]) -> bool
+{
+    if (set < 1 || set > CelestiteSets)
+    {
+        return false;
+    }
+
+    for (uint8 i = 0; i < CelestiteSlots; i++)
+    {
+        const uint8 n = slots[i];
+        if (n == 0)
+        {
+            continue;
+        }
+
+        if (PChar->m_celestite.sets[set][i] == 0 || !HasCelestite(PChar, CelestiteItemBase + n))
+        {
+            return false;
+        }
+
+        // A celestite may sit in every set, but only once within one set (client FUN_10117b70).
+        for (uint8 j = 0; j < i; j++)
+        {
+            if (slots[j] == n)
+            {
+                return false;
+            }
+        }
+    }
+
+    std::memcpy(&PChar->m_celestite.sets[set][CelestiteSlots], slots, CelestiteSlots);
+    SaveCelestite(PChar);
+
+    return true;
 }
 
 void SaveAlterEgo(const CCharEntity* PChar)
