@@ -12983,5 +12983,11 @@ xi.item =
     MOOGLE_STORAGE_SLIP_31              = 29342,
     MOOGLE_STORAGE_SLIP_32              = 29343,
     MOOGLE_STORAGE_SLIP_33              = 29344,
+    PIECE_OF_CELESTITE_ACCURACY         = 29425,
+    PIECE_OF_CELESTITE_EVASION          = 29426,
+    PIECE_OF_CELESTITE_ATTACK           = 29427,
+    PIECE_OF_CELESTITE_DEFENSE          = 29428,
+    PIECE_OF_CELESTITE_MAGIC_ATK        = 29429,
+    PIECE_OF_CELESTITE_MAGIC_DEF        = 29430,
     GIL                                 = 65535,
 }

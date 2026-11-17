@@ -1927,6 +1927,27 @@ end
 function CBaseEntity:triggerRoeEvent(eventNum, reqTable)
 end
 
+---@nodiscard
+---@param itemId integer
+---@return boolean
+function CBaseEntity:hasCelestite(itemId)
+end
+
+---@param itemId integer
+---@return nil
+function CBaseEntity:addCelestite(itemId)
+end
+
+---@param slot integer
+---@param level integer
+---@return nil
+function CBaseEntity:setCelestiteSlotLevel(slot, level)
+end
+
+---@return nil
+function CBaseEntity:sendCelestite()
+end
+
 ---@param leaderID integer
 ---@return nil
 function CBaseEntity:setUnityLeader(leaderID)
