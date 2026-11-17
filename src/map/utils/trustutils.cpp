@@ -389,6 +389,7 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
 
     LoadTrustStatsAndSkills(PTrust);
     trustascension::ApplyAlterEgo(PTrust, PMaster);
+    trustascension::ApplyCelestite(PTrust, PMaster);
 
     // Use Mob formulas to work out base "weapon" damage, but scale down to reasonable values.
     // TODO: Verify trust base damage.
