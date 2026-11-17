@@ -96,6 +96,7 @@
 #include "trade_container.h"
 #include "trait.h"
 #include "treasure_pool.h"
+#include "trust_ascension.h"
 #include "unitychat.h"
 #include "universal_container.h"
 #include "utils/dataset_loader.h"
@@ -142,6 +143,7 @@
 #include "packets/s2c/0x063_miscdata_monstrosity.h"
 #include "packets/s2c/0x063_miscdata_unity.h"
 #include "packets/s2c/0x075_battlefield.h"
+#include "packets/s2c/0x08e_trust_ascension_points.h"
 #include "packets/s2c/0x0df_group_attr.h"
 #include "packets/s2c/0x110_unity.h"
 #include "packets/s2c/0x111_roe_activelog.h"
@@ -848,6 +850,7 @@ auto LoadChar(const uint32 charId) -> std::unique_ptr<CCharEntity>
     LoadFromCharsSQL(PChar);
     LoadFromCharSpellsSQL(PChar);
     LoadFromCharProfileSQL(PChar);
+    trustascension::Load(PChar);
 
     roeutils::onCharLoad(PChar);
 
@@ -6730,6 +6733,11 @@ void AddPoints(CCharEntity* PChar, const char* type, int32 amount, int32 max)
 {
     TracyZoneScoped;
 
+    if (strcmp(type, "alter_ego_points") == 0)
+    {
+        max = std::min<int32>(max, std::numeric_limits<uint16>::max()); // smallint column and u16 in 0x08E
+    }
+
     const auto currentPointsValue = GetPoints(PChar, type);
     // 64-bit sum so amount can't overflow, and max is sanitized: callers (including Lua's
     // addCurrency) can pass a non-positive cap, which would otherwise invert the clamp bounds.
@@ -6747,6 +6755,12 @@ void AddPoints(CCharEntity* PChar, const char* type, int32 amount, int32 max)
         roeutils::UpdateUnityTrust(PChar, true);
 
         PChar->pushPacket<GP_SERV_COMMAND_CLISTATUS>(PChar);
+    }
+
+    // Retail sends a fresh 0x08E whenever the points change (e.g. after using a Trust Tome).
+    if (strcmp(type, "alter_ego_points") == 0)
+    {
+        PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_POINTS>(PChar);
     }
 }
 

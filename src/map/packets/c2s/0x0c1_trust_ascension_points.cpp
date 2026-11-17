@@ -25,7 +25,7 @@
 #include "entities/char_entity.h"
 #include "enums/alter_ego_points.h"
 #include "packets/c2s/validation.h"
-#include "packets/s2c/0x08e_trust_ascension_points.h"
+#include "trust_ascension.h"
 
 auto GP_CLI_COMMAND_TRUST_ASCENSION_POINTS::validate(MapSession* PSession, const CCharEntity* PChar) const
     -> PacketValidationResult
@@ -46,13 +46,6 @@ auto GP_CLI_COMMAND_TRUST_ASCENSION_POINTS::validate(MapSession* PSession, const
 
 void GP_CLI_COMMAND_TRUST_ASCENSION_POINTS::process(MapSession* PSession, CCharEntity* PChar) const
 {
-    // Entrypoint for player requesting Alter Ego upgrade
-    // 1) Verify PC has enough points to spend (0->10=1pt, 10->20=2 pts, 20->30=3pts, 30->40=4pts, 40->50=5pts
-    // 2) Verify PC is not attempting to upgrade past the cap (50)
-    // 3) Save upgrade to DB
-    // 4) Substract spent alter_ego_points
-    // 5) Emit BATTLE_MESSAGE message 828 with Data set to CategoryIndex and Data2 set to upgrade level
-    // PChar->pushPacket<GP_SERV_COMMAND_BATTLE_MESSAGE>(PChar, PChar, this->CategoryIndex, 1, MsgBasic::AlterEgoUpgrade);
-    // 6) Send updated array to PC
-    PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_POINTS>(PChar);
+    // Retail was only seen accepting upgrades; its answer to one the points or the cap refuse is not known.
+    trustascension::UpgradeAlterEgo(PChar, static_cast<uint8>(this->CategoryIndex));
 }

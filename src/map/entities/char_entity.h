@@ -33,6 +33,7 @@
 #include "items/transaction.h"
 #include "moghouse_container.h"
 #include "monstrosity.h"
+#include "trust_ascension.h"
 #include <common/macros.h>
 
 #include <common/cbasetypes.h>
@@ -431,6 +432,8 @@ public:
     assaultlog_t     m_assaultLog{};                  // Assault mission list
     campaignlog_t    m_campaignLog{};                 // Campaign mission list
     PetInfo_t        petZoningInfo{};                 // Used to repawn dragoons pets ect on zone
+
+    trustascension::AlterEgoLevels m_alterEgo{}; // Alter Ego upgrade levels (Trust Ascension)
 
     void setPetZoningInfo();                            // Set pet zoning info (when zoning and logging out)
     void resetPetZoningInfo();                          // Reset pet zoning info (when changing job ect)

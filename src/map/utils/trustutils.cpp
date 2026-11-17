@@ -41,6 +41,7 @@
 #include "items/item_weapon.h"
 #include "mobskill.h"
 #include "status_effect_container.h"
+#include "trust_ascension.h"
 #include "weapon_skill.h"
 #include "zone.h"
 
@@ -387,6 +388,7 @@ auto LoadTrust(CCharEntity* PMaster, uint32 TrustID) -> CTrustEntity*
     PTrust->SetSLevel(std::floor(PMaster->GetMLevel() / 2));
 
     LoadTrustStatsAndSkills(PTrust);
+    trustascension::ApplyAlterEgo(PTrust, PMaster);
 
     // Use Mob formulas to work out base "weapon" damage, but scale down to reasonable values.
     // TODO: Verify trust base damage.

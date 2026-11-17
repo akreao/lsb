@@ -225,6 +225,7 @@ player_data = [
     "char_stats.sql",
     "char_storage.sql",
     "char_style.sql",
+    "char_trust_ascension.sql",
     "char_unlocks.sql",
     "char_vars.sql",
     "char_world_passes.sql",

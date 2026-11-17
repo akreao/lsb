@@ -77,6 +77,7 @@ BEGIN
     DELETE FROM `char_stats`                    WHERE `charid` = OLD.charid;
     DELETE FROM `char_storage`                  WHERE `charid` = OLD.charid;
     DELETE FROM `char_style`                    WHERE `charid` = OLD.charid;
+    DELETE FROM `char_trust_ascension`          WHERE `charid` = OLD.charid;
     DELETE FROM `char_unlocks`                  WHERE `charid` = OLD.charid;
     DELETE FROM `char_vars`                     WHERE `charid` = OLD.charid;
     DELETE FROM `auction_house`                 WHERE `seller` = OLD.charid;
