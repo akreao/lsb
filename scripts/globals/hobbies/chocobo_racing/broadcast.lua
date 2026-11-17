@@ -96,5 +96,12 @@ xi.chocoboRacing.onEventUpdate = function(player, csid, option, npc)
         player:updateEvent(intro[half], 0, topLane, 0, result, 0, 0, raceEvent.SHOWING)
     elseif option == raceEvent.PAYOUT then
         player:updateEvent(0, 0, xi.chocoboRacing.getQuinella(race).payout, 0, result, 0, 0, raceEvent.SHOWING)
+
+        -- Records of Eminence 3782 Chocobo Races (M): "Spectate chocobo races from the stands".
+        -- UNVERIFIED: counted when the grandstand race event reaches the payout (the race watched to the end); what
+        -- retail counts as watching was not captured.
+        if player:hasEminenceRecord(3782) then
+            xi.roe.onRecordTrigger(player, 3782)
+        end
     end
 end

@@ -7,7 +7,8 @@
 local itemObject = {}
 
 itemObject.onItemCheck = function(target, item, caster)
-    -- UNVERIFIED: the points are only of use with the Cipher Bracelet; retail's refusal without it was not captured.
+    -- INFERRED (dev notes: primers come from monthly objectives, points need the Cipher Bracelet): refused without
+    -- the bracelet. Retail's refusal message was not captured; the client data has none of its own.
     if not target:hasKeyItem(xi.keyItem.CIPHER_BRACELET) then
         return xi.msg.basic.ITEM_UNABLE_TO_USE
     end
