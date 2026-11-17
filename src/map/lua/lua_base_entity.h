@@ -466,6 +466,7 @@ public:
     void addCelestite(uint16 itemId);
     void setCelestiteSlotLevel(uint8 slot, uint8 level);
     void sendCelestite();
+    void queueCelestiteUpdate();
     void setUnityLeader(uint8 leaderID);
     auto getUnityLeader() -> uint8;
     auto getUnityRank(const sol::object& unityObj) -> Maybe<uint8>;

@@ -273,3 +273,79 @@ describe('Trust Ascension', function()
         end)
     end)
 end)
+
+describe('Trust Ascension slot records', function()
+    ---@type CClientEntityPair
+    local player
+    ---@type CTestEntity
+    local mob
+
+    local function take(record)
+        local packet = ffi.new('uint8_t[8]')
+        packet[0x04] = record % 0x100
+        packet[0x05] = math.floor(record / 0x100)
+        player.packets:send(0x10C, packet, ffi.sizeof(packet))
+        assert(player:hasEminenceRecord(record), string.format('record %d was not taken', record))
+    end
+
+    before_each(function()
+        player = xi.test.world:spawnPlayer({ job = xi.job.WAR, level = 99, zone = xi.zone.CEIZAK_BATTLEGROUNDS })
+        player:setEminenceCompleted(1) -- First Step Forward
+        player:addKeyItem(xi.keyItem.CELESTITE_CASE)
+        player:addCelestite(xi.item.PIECE_OF_CELESTITE_DEFENSE)
+        player:setCelestiteSlotLevel(1, 1)
+        player:setUnkillable(true)
+        mob = player.entities:moveTo('Blanched_Mandragora')
+    end)
+
+    it('counts one kill for 1093 and 1102 together and opens slot 2 with one 0x08F', function()
+        take(1093)
+        take(1102)
+        player:spawnTrust(xi.magic.spell.VALAINERAL)
+        xi.test.world:skipTime(1)
+
+        for kill = 1, 10 do
+            mob:setLevelRange(102, 102)
+            mob:respawn()
+            if kill == 10 then
+                player.packets:clear()
+            end
+
+            player:claimAndKillMob(mob)
+        end
+
+        local trusts = 0
+        for _, member in ipairs(player:getPartyWithTrusts()) do
+            if member:isTrust() then
+                trusts = trusts + 1
+            end
+        end
+
+        assert(player:getEminenceCompleted(1093) and player:getEminenceCompleted(1102),
+            string.format('records were not completed: progress %s %s, trusts %d, mob level %d', tostring(player:getEminenceProgress(1093)),
+                tostring(player:getEminenceProgress(1102)), trusts, mob:getMainLvl()))
+        assert(countPackets(player, 0x08F) == 1, string.format('expected one 0x08F, saw %d', countPackets(player, 0x08F)))
+
+        local _, sets = readCelestite(player)
+        for set = 1, 6 do
+            assert(sets[set].levels[0] == 2 and sets[set].levels[1] == 1,
+                string.format('set %d slot levels %d %d', set, sets[set].levels[0], sets[set].levels[1]))
+            assert(sets[set].worn[0] == 0 or sets[set].worn[0] == 4, 'worn celestite changed')
+        end
+    end)
+
+    it('does not count kills without an alter ego or below the level', function()
+        take(1093)
+        mob:setLevelRange(102, 102)
+        mob:respawn()
+        player:claimAndKillMob(mob)
+        assert(player:getEminenceProgress(1093) == 0, 'counted a kill without an alter ego')
+
+        player:spawnTrust(xi.magic.spell.VALAINERAL)
+        xi.test.world:skipTime(1)
+        mob:setLevelRange(101, 101)
+        mob:respawn()
+        player:claimAndKillMob(mob)
+        assert(player:getEminenceProgress(1093) == 0, 'counted a Lv.101 kill')
+    end)
+end)

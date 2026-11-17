@@ -29,6 +29,7 @@
 #include "enums/msg_basic.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "packets/s2c/0x08e_trust_ascension_points.h"
+#include "packets/s2c/0x08f_trust_ascension_equip.h"
 #include "utils/charutils.h"
 
 #include <cstring>
@@ -109,6 +110,15 @@ void SetCelestiteSlotLevel(CCharEntity* PChar, const uint8 slot, const uint8 lev
     }
 
     SaveCelestite(PChar);
+}
+
+void FlushPendingCelestite(CCharEntity* PChar)
+{
+    if (PChar->m_celestitePending)
+    {
+        PChar->m_celestitePending = false;
+        PChar->pushPacket<GP_SERV_COMMAND_TRUST_ASCENSION_EQUIP>(PChar);
+    }
 }
 
 auto SetCelestiteSet(CCharEntity* PChar, const uint8 set, const uint8 (&slots)[CelestiteSlots]) -> bool

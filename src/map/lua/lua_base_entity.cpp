@@ -9156,6 +9156,23 @@ void CLuaBaseEntity::sendCelestite()
 }
 
 /************************************************************************
+ *  Function: queueCelestiteUpdate()
+ *  Purpose : Sends one 0x08F when the current record event finishes (several records may change the sets)
+ *  Example : player:queueCelestiteUpdate()
+ ************************************************************************/
+
+void CLuaBaseEntity::queueCelestiteUpdate()
+{
+    if (m_PBaseEntity->objtype != TYPE_PC)
+    {
+        ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
+        return;
+    }
+
+    static_cast<CCharEntity*>(m_PBaseEntity)->m_celestitePending = true;
+}
+
+/************************************************************************
  *  Function: triggerRoeEvent(eventID, {["reqName"] = value})
  *  Purpose : Triggers roeutils::event()
  *  Example : player:triggerRoeEvent(19)
@@ -21221,6 +21238,7 @@ void CLuaBaseEntity::Register()
     SOL_REGISTER("addCelestite", CLuaBaseEntity::addCelestite);
     SOL_REGISTER("setCelestiteSlotLevel", CLuaBaseEntity::setCelestiteSlotLevel);
     SOL_REGISTER("sendCelestite", CLuaBaseEntity::sendCelestite);
+    SOL_REGISTER("queueCelestiteUpdate", CLuaBaseEntity::queueCelestiteUpdate);
     SOL_REGISTER("setUnityLeader", CLuaBaseEntity::setUnityLeader);
     SOL_REGISTER("getUnityLeader", CLuaBaseEntity::getUnityLeader);
     SOL_REGISTER("getUnityRank", CLuaBaseEntity::getUnityRank);

@@ -33,7 +33,9 @@
 #include "packets/s2c/0x0aa_magic_data.h"
 #include "packets/s2c/0x111_roe_activelog.h"
 #include "packets/s2c/0x112_roe_log.h"
+#include "trust_ascension.h"
 
+#include <array>
 #include <bit>
 
 #define ROE_CACHETIME 15s
@@ -260,11 +262,14 @@ auto event(const ROE_EVENT eventID, CCharEntity* PChar, const RoeDatagramList& p
         return false;
     }
 
-    // Call onRecordTrigger for each record of this type
-    for (int i = 0; i < 31; i++)
+    // Call onRecordTrigger for each record of this type. Walk a copy: a record that completes is removed and the
+    // entries behind it shift up, which would skip the next record (retail completes both when one kill finishes
+    // two records, e.g. Trust Ascension 1093 and 1102).
+    const auto active = std::to_array(PChar->m_eminenceLog.active);
+    for (const uint16 recordID : active)
     {
         // Check record is of this type
-        if (uint16 recordID = PChar->m_eminenceLog.active[i]; handler.bitmap.test(recordID))
+        if (handler.bitmap.test(recordID))
         {
             call_onRecordTrigger(PChar, recordID, payload);
         }
@@ -274,6 +279,8 @@ auto event(const ROE_EVENT eventID, CCharEntity* PChar, const RoeDatagramList& p
     {
         call_onRecordTrigger(PChar, recordID, payload);
     }
+
+    trustascension::FlushPendingCelestite(PChar);
 
     return true;
 }
@@ -631,6 +638,7 @@ auto onRecordClaim(CCharEntity* PChar, const uint16 recordID) -> bool
     if (roeutils::HasEminenceRecord(PChar, recordID))
     {
         call_onRecordTrigger(PChar, recordID, RoeDatagramList{ RoeDatagram("claim", 1) });
+        trustascension::FlushPendingCelestite(PChar);
         return true;
     }
     return false;

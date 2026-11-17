@@ -84,6 +84,10 @@ void AddCelestite(CCharEntity* PChar, uint16 itemId);
 // Sets one slot's level in all six sets (0 closes it).
 void SetCelestiteSlotLevel(CCharEntity* PChar, uint8 slot, uint8 level);
 
+// Sends one 0x08F if a record changed the sets (retail: one 0x08F after the whole completion burst, even when two
+// slot records finish on the same kill).
+void FlushPendingCelestite(CCharEntity* PChar);
+
 // Replaces one set from c2s 0x0C5. Returns false (and changes nothing) when a celestite is not registered, sits in
 // a closed slot or appears twice in the set.
 auto SetCelestiteSet(CCharEntity* PChar, uint8 set, const uint8 (&slots)[CelestiteSlots]) -> bool;

@@ -1953,6 +1953,10 @@ end
 function CBaseEntity:sendCelestite()
 end
 
+---@return nil
+function CBaseEntity:queueCelestiteUpdate()
+end
+
 ---@param leaderID integer
 ---@return nil
 function CBaseEntity:setUnityLeader(leaderID)

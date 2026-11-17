@@ -433,8 +433,9 @@ public:
     campaignlog_t    m_campaignLog{};                 // Campaign mission list
     PetInfo_t        petZoningInfo{};                 // Used to repawn dragoons pets ect on zone
 
-    trustascension::AlterEgoLevels m_alterEgo{};  // Alter Ego upgrade levels (Trust Ascension)
-    trustascension::CelestiteData  m_celestite{}; // Registered celestite and the six sets (Trust Ascension)
+    trustascension::AlterEgoLevels m_alterEgo{};         // Alter Ego upgrade levels (Trust Ascension)
+    trustascension::CelestiteData  m_celestite{};        // Registered celestite and the six sets (Trust Ascension)
+    bool                           m_celestitePending{}; // Sets changed by a record; one 0x08F follows the record burst
 
     void setPetZoningInfo();                            // Set pet zoning info (when zoning and logging out)
     void resetPetZoningInfo();                          // Reset pet zoning info (when changing job ect)
