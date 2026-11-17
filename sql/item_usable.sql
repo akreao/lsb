@@ -2534,7 +2534,7 @@ INSERT INTO `item_usable` VALUES (6713,'reisen_shrine_glory',1,1,0,0,0,0,0,0);  
 INSERT INTO `item_usable` VALUES (6714,'copy_of_ulthalams_chronicles',1,1,0,0,0,0,0,0);      -- TODO: verify animation
 INSERT INTO `item_usable` VALUES (6715,'book_of_deeds',1,1,0,0,0,0,0,0);                     -- TODO: verify animation
 INSERT INTO `item_usable` VALUES (6716,'trust_magic_primer',1,1,0,0,0,0,0,0);                -- TODO: verify animation
-INSERT INTO `item_usable` VALUES (6717,'trust_magic_tome',1,1,0,0,0,0,0,0);                  -- TODO: verify animation
+INSERT INTO `item_usable` VALUES (6717,'trust_magic_tome',1,1,34,0,0,0,0,0);
 INSERT INTO `item_usable` VALUES (6718,'copy_of_marjorys_thesis',1,1,0,0,0,0,0,0);           -- TODO: verify animation
 INSERT INTO `item_usable` VALUES (6719,'regines_fifth_eye',1,1,0,0,0,0,0,0);                 -- TODO: verify animation
 INSERT INTO `item_usable` VALUES (6720,'sack_of_beads',1,1,0,0,0,0,0,0);                     -- TODO: animation, animationTime, aoe

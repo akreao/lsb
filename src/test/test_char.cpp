@@ -94,6 +94,7 @@ void TestChar::clean(uint32 charId /* = 0 */)
         "DELETE FROM char_stats WHERE charid BETWEEN ? AND ?",
         "DELETE FROM char_storage WHERE charid BETWEEN ? AND ?",
         "DELETE FROM char_style WHERE charid BETWEEN ? AND ?",
+        "DELETE FROM char_trust_ascension WHERE charid BETWEEN ? AND ?",
         "DELETE FROM char_unlocks WHERE charid BETWEEN ? AND ?",
         "DELETE FROM char_vars WHERE charid BETWEEN ? AND ?",
 

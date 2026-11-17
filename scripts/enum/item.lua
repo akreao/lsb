@@ -4115,6 +4115,7 @@ xi.item =
     HEROISM_AGGREGATE_GRAND_COFFER      = 6710,
     SWART_ASTRAL_DETRITUS_GR_COFFER     = 6711,
     MURKY_ASTRAL_DETRITUS_GR_COFFER     = 6712,
+    TRUST_MAGIC_TOME                    = 6717,
     HARLEQUIN_HEAD                      = 8193,
     VALOREDGE_HEAD                      = 8194,
     SHARPSHOT_HEAD                      = 8195,

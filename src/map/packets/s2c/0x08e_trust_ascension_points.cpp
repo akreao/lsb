@@ -21,6 +21,9 @@
 
 #include "0x08e_trust_ascension_points.h"
 
+#include "entities/char_entity.h"
+#include "enums/alter_ego_points.h"
+#include "trust_ascension.h"
 #include "utils/charutils.h"
 
 GP_SERV_COMMAND_TRUST_ASCENSION_POINTS::GP_SERV_COMMAND_TRUST_ASCENSION_POINTS(CCharEntity* PChar)
@@ -28,15 +31,12 @@ GP_SERV_COMMAND_TRUST_ASCENSION_POINTS::GP_SERV_COMMAND_TRUST_ASCENSION_POINTS(C
     auto& packet = this->data();
 
     packet.Points = charutils::GetPoints(PChar, "alter_ego_points");
-    // TODO: Populate actual upgrade levels per category - see AlterEgoCategory
-    for (auto& upgrade : packet.Upgrades)
-    {
-        upgrade = 0;
-    }
 
-    // TODO: Populate actual upgrade costs per category - see AlterEgoCategory
-    for (auto& cost : packet.Costs)
+    // Retail fills the levels and the next level's cost of the attribute ids 8..18 only, with or without
+    // the Cipher Bracelet; every other entry stays 0.
+    for (uint8 category = static_cast<uint8>(AlterEgoCategory::HP); category <= static_cast<uint8>(AlterEgoCategory::MagicSkills); category++)
     {
-        cost = 0;
+        packet.Upgrades[category] = PChar->m_alterEgo[category];
+        packet.Costs[category]    = trustascension::AlterEgoCost(PChar->m_alterEgo[category]);
     }
 }
