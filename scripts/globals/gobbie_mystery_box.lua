@@ -199,6 +199,14 @@ local gobbieJunk =
     xi.item.GOBLIN_PIE,
 }
 
+-- Records of Eminence 3779 Gobbie Mystery Box (M): "Spin the special dial ... the requisite number of times".
+-- UNVERIFIED: both the tally-point spin and the Special Gobbiedial Key spin of the special dial count here.
+xi.gobbieMysteryBox.countSpecialDial = function(player)
+    if player:hasEminenceRecord(3779) then
+        xi.roe.onRecordTrigger(player, 3779)
+    end
+end
+
 xi.gobbieMysteryBox.onTrade = function(player, npc, trade, events)
     if trade:getItemCount() == 1 then
         local tradeID = trade:getItemId(0)
@@ -264,6 +272,7 @@ xi.gobbieMysteryBox.onEventUpdate = function(player, csid, option, events)
             {
                 [6] = function()
                     itemID = SelectDailyItem(player, 6)
+                    xi.gobbieMysteryBox.countSpecialDial(player)
                 end,  -- special dial
 
                 [9] = function() -- abjuration
@@ -321,6 +330,9 @@ xi.gobbieMysteryBox.onEventUpdate = function(player, csid, option, events)
                     elseif dailyTallyPoints >= dialCost then
                         itemID = SelectDailyItem(player, dial)
                         player:setCharVar('gobbieBoxHoldingItem', itemID)
+                        if dial == 6 then
+                            xi.gobbieMysteryBox.countSpecialDial(player)
+                        end
                         player:setCurrency('daily_tally', dailyTallyPoints - dialCost)
                         if dialMask then
                             player:setCharVar('gobbieBoxUsed', utils.mask.setBit(gobbieBoxUsed, dialMask, true))

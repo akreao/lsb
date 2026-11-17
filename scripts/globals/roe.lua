@@ -244,6 +244,13 @@ local function completeRecord(player, record)
         player:addCapacityPoints(rewards['capacity'])
     end
 
+    -- Deeds of heroism (monthly "Deeds" records). UNVERIFIED: message 795 is the client's deeds text; its place in
+    -- the completion burst was not captured.
+    if rewards['deeds'] ~= nil and type(rewards['deeds']) == 'number' then
+        player:addCurrency('deeds', rewards['deeds'])
+        player:messageBasic(xi.msg.basic.ROE_RECEIVE_DEEDS, rewards['deeds'], player:getCurrency('deeds'))
+    end
+
     -- NOTE: To preserve retail order, messaging is here, but item is given if able at the beginning of this
     -- function, since if it fails, it will need to bail out.
     if canRewardItem then
@@ -283,6 +290,16 @@ local function completeRecord(player, record)
 
     if rewards['keyItem'] ~= nil then
         npcUtil.giveKeyItem(player, rewards['keyItem'])
+    end
+
+    -- Trust Primer from the monthly "Deeds" records. INFERRED: only once alter ego points are unlocked (Cipher
+    -- Bracelet), as seen on retail; the client's record text names the Primer without a condition.
+    if
+        rewards['trustPrimer'] and
+        player:hasKeyItem(xi.keyItem.CIPHER_BRACELET) and
+        npcUtil.giveItem(player, xi.item.TRUST_MAGIC_PRIMER, { silent = true })
+    then
+        player:messageBasic(xi.msg.basic.ROE_BONUS_ITEM, xi.item.TRUST_MAGIC_PRIMER, 1)
     end
 
     -- Trust Ascension: { slot, level } for all six celestite sets. Retail sends no message for it, and one 0x08F

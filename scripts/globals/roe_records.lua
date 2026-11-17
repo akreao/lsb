@@ -9600,6 +9600,21 @@ xi.roe.records =
     -- TODO: 3773-3778 (Besieged, Campaign, Reive, Ambuscade, Omen and Divergence participation) need content LSB lacks.
     -----------------------------------
 
+    -- Monthly "Deeds" records (client objective data: goal, sparks, exp, capacity; reward 10 deeds of heroism and a
+    -- Trust Primer). Walk of Echoes (3785) and High-Tier Mission Battlefields (3788) wait on that content.
+    [3779] =
+    { -- Gobbie Mystery Box (M)
+        flags = set { 'monthly' },
+        goal = 3,
+        reward = { sparks = 50, exp = 500, capacity = 500, deeds = 10, trustPrimer = true },
+    },
+
+    [3782] =
+    { -- Chocobo Races (M)
+        flags = set { 'monthly' },
+        reward = { sparks = 100, exp = 1000, capacity = 1000, deeds = 10, trustPrimer = true },
+    },
+
     [3768] =
     { -- A.M.A.N. Trove (M)
         check = function(self, player, params)
