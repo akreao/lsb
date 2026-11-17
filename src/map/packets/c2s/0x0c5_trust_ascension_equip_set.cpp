@@ -29,12 +29,20 @@
 
 auto GP_CLI_COMMAND_TRUST_ASCENSION_EQUIP_SET::validate(MapSession* PSession, const CCharEntity* PChar) const -> PacketValidationResult
 {
-    // The client only offers changes in the Mog House (system message 0xB2 elsewhere) with the Celestite Case.
+    // The client only offers changes in the Mog House (system message 0xB2 elsewhere) with the Celestite Case; the
+    // November 2026 update notes add "when your main job level is 99".
     return PacketValidator(PChar)
         .blockedBy({ BlockedState::InEvent, BlockedState::AbnormalStatus })
         .range("Category", this->Category, 1, trustascension::CelestiteSets)
         .isInMogHouse()
-        .hasKeyItem(xi::KeyItem::CelestiteCase);
+        .hasKeyItem(xi::KeyItem::CelestiteCase)
+        .custom([&](PacketValidator& v)
+                {
+                    if (PChar->GetMLevel() < 99)
+                    {
+                        v.mustEqual(true, false, "Main job must be Level 99");
+                    }
+                });
 }
 
 void GP_CLI_COMMAND_TRUST_ASCENSION_EQUIP_SET::process(MapSession* PSession, CCharEntity* PChar) const
