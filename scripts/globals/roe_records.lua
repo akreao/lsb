@@ -9601,18 +9601,18 @@ xi.roe.records =
     -----------------------------------
 
     -- Monthly "Deeds" records (client objective data: goal, sparks, exp, capacity; reward 10 deeds of heroism and a
-    -- Trust Primer). Walk of Echoes (3785) and High-Tier Mission Battlefields (3788) wait on that content.
+    -- Trust Primer, given to everyone; the Primer itself only works once alter ego points are unlocked). Walk of Echoes (3785) and High-Tier Mission Battlefields (3788) wait on that content.
     [3779] =
     { -- Gobbie Mystery Box (M)
         flags = set { 'monthly' },
         goal = 3,
-        reward = { sparks = 50, exp = 500, capacity = 500, deeds = 10, trustPrimer = true },
+        reward = { sparks = 50, exp = 500, capacity = 500, deeds = 10, item = { xi.item.TRUST_MAGIC_PRIMER } },
     },
 
     [3782] =
     { -- Chocobo Races (M)
         flags = set { 'monthly' },
-        reward = { sparks = 100, exp = 1000, capacity = 1000, deeds = 10, trustPrimer = true },
+        reward = { sparks = 100, exp = 1000, capacity = 1000, deeds = 10, item = { xi.item.TRUST_MAGIC_PRIMER } },
     },
 
     [3768] =

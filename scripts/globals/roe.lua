@@ -292,16 +292,6 @@ local function completeRecord(player, record)
         npcUtil.giveKeyItem(player, rewards['keyItem'])
     end
 
-    -- Trust Primer from the monthly "Deeds" records. INFERRED: only once alter ego points are unlocked (Cipher
-    -- Bracelet), as seen on retail; the client's record text names the Primer without a condition.
-    if
-        rewards['trustPrimer'] and
-        player:hasKeyItem(xi.keyItem.CIPHER_BRACELET) and
-        npcUtil.giveItem(player, xi.item.TRUST_MAGIC_PRIMER, { silent = true })
-    then
-        player:messageBasic(xi.msg.basic.ROE_BONUS_ITEM, xi.item.TRUST_MAGIC_PRIMER, 1)
-    end
-
     -- Trust Ascension: { slot, level } for all six celestite sets. Retail sends no message for it, and one 0x08F
     -- after the whole completion burst (sent by the core once the record event is done).
     if rewards['celestiteSlot'] ~= nil then

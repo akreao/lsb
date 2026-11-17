@@ -2,8 +2,9 @@
 -- ID: 6716
 -- Item: Trust Primer
 -- Grants 20 alter ego points.
--- UNVERIFIED: the amount is from BG Wiki (Category:Trust, Alter Ego Points); the message (827) and the Cipher
--- Bracelet check follow the captured Trust Tome.
+-- Wiki-sourced (BG Wiki, Trust Primer): "Consuming this gives the player 20 alter ego points. Must first obtain a Key
+-- Item Cipher bracelet from Syndella". The Primer itself can be obtained before that (monthly objectives).
+-- UNVERIFIED: the message (827) follows the captured Trust Tome; retail's refusal message was not captured.
 -----------------------------------
 ---@type TItem
 local itemObject = {}
