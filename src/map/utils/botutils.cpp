@@ -127,9 +127,10 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     charutils::BuildingCharAbilityTable(PRaw);
     charutils::BuildingCharTraitsTable(PRaw);
 
+    // GetMaxHP/GetMaxMP are only valid after UpdateHealth turns the new stats into max values.
+    PRaw->UpdateHealth();
     PRaw->health.hp = PRaw->GetMaxHP();
     PRaw->health.mp = PRaw->GetMaxMP();
-    PRaw->UpdateHealth();
 
     PRaw->loc.p           = spec.pos;
     PRaw->loc.destination = PZone->GetID();

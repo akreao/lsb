@@ -57,9 +57,20 @@ describe('Player bots', function()
         assert(bot:getID() >= 0x00F00000 and bot:getID() < 0x01000000, string.format('bad bot id 0x%X', bot:getID()))
         assert(bot:getTargID() >= 0x400 and bot:getTargID() < 0x700, string.format('bad bot targid 0x%X', bot:getTargID()))
         assert(bot:getTargID() ~= player:getTargID(), 'bot took the player targid')
-        assert(countIncoming(0x00D, bot:getID()) > 0, 'player was not sent a 0x00D for the bot')
+        -- 0x00D: HP percent at 0x1E, in the first packet that carries the bot
+        local hpp
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x00D and packetReader.readU32(packet.data, 0x04) == bot:getID() and not hpp then
+                hpp = packet.data[0x1E]
+            end
+        end
+
+        assert(hpp, 'player was not sent a 0x00D for the bot')
+        assert(hpp == 100, string.format('0x00D sent the bot at %d%% HP', hpp))
         assert(bot:getMainLvl() == 10, 'bot level not set')
         assert(bot:getMaxHP() > 0, 'bot has no HP')
+        assert(bot:getHP() == bot:getMaxHP() and bot:getHPP() == 100, string.format('bot spawned at %d/%d HP', bot:getHP(), bot:getMaxHP()))
+        assert(bot:getMP() == bot:getMaxMP(), string.format('bot spawned at %d/%d MP', bot:getMP(), bot:getMaxMP()))
         assert(bot:getSubJob() == xi.job.NONE, 'bot without a support job has one')
         assert(bot:getSubLvl() == 0, 'bot without a support job has a support level')
     end)
