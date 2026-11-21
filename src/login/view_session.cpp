@@ -21,6 +21,7 @@
 
 #include "view_session.h"
 
+#include "client_version.h"
 #include "data_session.h"
 
 #include <common/md52.h>
@@ -410,40 +411,24 @@ void view_session::read_func()
             client_ver_data             = client_ver_data + "xx_x";                              // And then we replace those last 4
             DebugSockets(fmt::format("Version: {:?} from {}", client_ver_data, ipAddress));
 
-            std::string expected_version(settings::get<std::string>("login.CLIENT_VER"), 0, 6); // Same deal here!
-            expected_version     = expected_version + "xx_x";
-            bool versionMismatch = expected_version != client_ver_data;
-            bool fatalMismatch   = false;
+            const std::string expected_version = clientVersion::masked(settings::get<std::string>("login.CLIENT_VER"));
+            const auto        versionCheck     = clientVersion::check(expected_version, client_ver_data, settings::get<uint8>("login.VER_LOCK"));
+            const bool        fatalMismatch    = versionCheck.fatal;
 
-            if (versionMismatch)
+            // Stored with the session and written to accounts_sessions.version_mismatch.
+            session.versionMismatch = versionCheck.mismatch;
+
+            if (versionCheck.mismatch)
             {
                 ShowError(fmt::format("view_session: Account {} has incorrect client version: got {:?}, expected {}", session.accountID, client_ver_data, expected_version));
 
-                switch (settings::get<uint8>("login.VER_LOCK"))
+                if (fatalMismatch && expected_version < client_ver_data)
                 {
-                    // enabled
-                    case 1:
-                        if (expected_version < client_ver_data)
-                        {
-                            ShowError("view_session: The server must be updated to support this client version");
-                        }
-                        else
-                        {
-                            ShowError("view_session: The client must be updated to support this server version");
-                        }
-                        fatalMismatch = true;
-                        break;
-                    // enabled greater than or equal
-                    case 2:
-                        if (expected_version > client_ver_data)
-                        {
-                            ShowError("view_session: The client must be updated to support this server version");
-                            fatalMismatch = true;
-                        }
-                        break;
-                    default:
-                        // no-op - not enabled or unknown verlock type
-                        break;
+                    ShowError("view_session: The server must be updated to support this client version");
+                }
+                else if (fatalMismatch)
+                {
+                    ShowError("view_session: The client must be updated to support this server version");
                 }
             }
 

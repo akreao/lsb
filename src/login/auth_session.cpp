@@ -294,6 +294,9 @@ void auth_session::read_func()
             loginSuccessReply["result"]       = static_cast<uint8>(login_result::LOGIN_SUCCESS);
             loginSuccessReply["account_id"]   = accountID;
             loginSuccessReply["session_hash"] = hash; // This has to be sent as an array, json.dump() tries to convert to UTF which fails
+            // Data version the lobby expects (login.CLIENT_VER). Optional: xiloader ignores
+            // unknown keys; clients may use it to warn when their data is newer than the server's.
+            loginSuccessReply["client_ver"] = settings::get<std::string>("login.CLIENT_VER");
 
             if (trust_this_computer && otpVerified)
             {
