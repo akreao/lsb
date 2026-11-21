@@ -304,4 +304,8 @@ xi.settings.map =
     -- The max GM level is 5, so setting this to 6 disables it
     -- for everone. Setting it to 0 enables for everyone.
     REPORT_LUA_ERRORS_TO_PLAYER_LEVEL = 6,
+
+    -- Player bots: memory-only player shells that are never saved to the database (custom, not retail).
+    -- They only exist in a zone that has at least one real player. Off by default.
+    PLAYER_BOTS_ENABLED = false,
 }

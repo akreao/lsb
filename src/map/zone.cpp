@@ -868,8 +868,28 @@ void CZone::DecreaseZoneCounter(CCharEntity* PChar)
     {
         m_zoneEntities->DespawnPC(PChar);
     }
+    else
+    {
+        // Bots only live while the zone has a real player in it.
+        m_zoneEntities->DespawnAllBots();
+    }
 
     CharZoneOut(PChar);
+}
+
+auto CZone::InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*
+{
+    return m_zoneEntities->InsertBot(std::move(PBot));
+}
+
+void CZone::DespawnBots()
+{
+    m_zoneEntities->DespawnAllBots();
+}
+
+auto CZone::GetBotCount() const -> std::size_t
+{
+    return m_zoneEntities->GetBotCount();
 }
 
 /************************************************************************

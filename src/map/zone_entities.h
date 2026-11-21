@@ -82,6 +82,10 @@ public:
 
     void InsertAlly(CBaseEntity* PMob);
     void InsertPC(CCharEntity* PChar);
+    auto InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*;
+    void DespawnBot(uint16 targid);
+    void DespawnAllBots();
+    auto GetBotCount() const -> std::size_t;
     void InsertNPC(CBaseEntity* PNpc);
     void InsertMOB(CBaseEntity* PMob);
     void InsertPET(CBaseEntity* PPet);
@@ -152,6 +156,9 @@ private:
     EntityList_t m_npcList;
     EntityList_t m_TransportList;
     EntityList_t m_charList;
+
+    // Player bots, keyed by targid. They take PC targids but stay out of m_charList, so the loops over real players skip them.
+    std::map<uint16, std::unique_ptr<CCharEntity>> m_botList;
 
     SpatialGrid               spatialGrid_;        // proximity grid; rebuilt every tick (always on)
     std::vector<uint32>       idsToRemoveScratch_; // reused scratch for grid spawn-list removals

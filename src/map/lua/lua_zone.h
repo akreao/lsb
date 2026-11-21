@@ -71,6 +71,9 @@ public:
     auto getTerrainType(const sol::table& position) -> xi::TerrainType;
     auto getFloorId(const sol::table& position) -> uint8;
     auto insertDynamicEntity(sol::table table) -> CBaseEntity*;
+    auto spawnBot(const sol::table& table) -> CCharEntity*;
+    void despawnBots();
+    auto getBotCount() -> uint32;
 
     auto getSoloBattleMusic();
     auto getPartyBattleMusic();

@@ -295,7 +295,7 @@ CCharEntity::~CCharEntity()
         PUnityChat->DelMember(this);
     }
 
-    if (isDead())
+    if (isDead() && !isBot_)
     {
         charutils::SaveDeathTime(this);
     }
@@ -346,7 +346,10 @@ CCharEntity::~CCharEntity()
         PParty->PopMember(this);
     }
 
-    charutils::WriteHistory(this);
+    if (!isBot_)
+    {
+        charutils::WriteHistory(this);
+    }
 
     this->clearTransactions();
 
@@ -364,6 +367,16 @@ CCharEntity::~CCharEntity()
         eventQueue.pop_front();
         destroy(head);
     }
+}
+
+auto CCharEntity::isBot() const -> bool
+{
+    return isBot_;
+}
+
+void CCharEntity::setBot()
+{
+    isBot_ = true;
 }
 
 auto CCharEntity::GetGender() -> uint8
@@ -401,6 +414,12 @@ void CCharEntity::pushPacket(std::unique_ptr<CBasicPacket>&& packet)
     TracyZoneScoped;
     TracyZoneString(getName());
     TracyZoneHex16(packet->getType());
+
+    // A bot has no client, so nothing would ever drain its packet list.
+    if (isBot_)
+    {
+        return;
+    }
 
     if (isPacketFiltered(packet))
     {

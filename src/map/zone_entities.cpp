@@ -254,6 +254,75 @@ void CZoneEntities::InsertPC(CCharEntity* PChar)
     ShowDebug("CZone:: %s IncreaseZoneCounter <%u> %s", m_zone->getName(), m_charList.size(), PChar->getName());
 }
 
+auto CZoneEntities::InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*
+{
+    TracyZoneScoped;
+
+    if (PBot == nullptr)
+    {
+        return nullptr;
+    }
+
+    const uint16 targid = GetNewCharTargID();
+    if (targid >= 0x700)
+    {
+        ShowErrorFmt("CZoneEntities::InsertBot: no PC targid left in zone {}", m_zone->getName());
+        return nullptr;
+    }
+
+    PBot->targid   = targid;
+    PBot->loc.zone = m_zone;
+
+    auto* PRaw = PBot.get();
+    m_botList.emplace(targid, std::move(PBot));
+
+    TryAddToNearbySpawnLists(PRaw);
+
+    ShowDebugFmt("CZone:: {} InsertBot <{}> {}", m_zone->getName(), m_botList.size(), PRaw->getName());
+
+    return PRaw;
+}
+
+void CZoneEntities::DespawnBot(const uint16 targid)
+{
+    TracyZoneScoped;
+
+    const auto it = m_botList.find(targid);
+    if (it == m_botList.end())
+    {
+        return;
+    }
+
+    auto* PBot = it->second.get();
+
+    FOR_EACH_PAIR_CAST_SECOND(CCharEntity*, PCurrentChar, m_charList)
+    {
+        if (const auto itr = PCurrentChar->SpawnPCList.find(PBot->id); itr != PCurrentChar->SpawnPCList.end())
+        {
+            PCurrentChar->SpawnPCList.erase(itr);
+            PCurrentChar->updateEntityPacket(PBot, ENTITY_DESPAWN, UPDATE_NONE);
+        }
+    }
+
+    spatialGrid_.remove(PBot);
+    m_botList.erase(it);
+}
+
+void CZoneEntities::DespawnAllBots()
+{
+    TracyZoneScoped;
+
+    while (!m_botList.empty())
+    {
+        DespawnBot(m_botList.begin()->first);
+    }
+}
+
+auto CZoneEntities::GetBotCount() const -> std::size_t
+{
+    return m_botList.size();
+}
+
 void CZoneEntities::InsertAlly(CBaseEntity* PMob)
 {
     TracyZoneScoped;
@@ -650,13 +719,10 @@ void CZoneEntities::DecreaseZoneCounter(CCharEntity* PChar)
 auto CZoneEntities::GetNewCharTargID() -> uint16
 {
     // NOTE: 0x0D (char_update) entity updates are valid for 1024 to 1791
+    // Bots take PC targids too, so skip both sets.
     uint16 targid = 0x400;
-    for (auto it : m_charTargIds)
+    while (m_charTargIds.contains(targid) || m_botList.contains(targid))
     {
-        if (targid != it)
-        {
-            break;
-        }
         ++targid;
     }
     if (targid >= 0x700)
@@ -859,6 +925,11 @@ void CZoneEntities::rebuildSpatialGrid()
     // NPCs file into the grid like everything else, and we collect the alwaysRelevant ones here (in
     // the loop we already pay) so SpawnNPCs can spawn them regardless of range - a 3x3 cell query
     // can't find an NPC that's relevant from across the zone.
+    for (const auto& [_, bot] : m_botList)
+    {
+        spatialGrid_.add(bot.get());
+    }
+
     for (const auto& [_, entity] : m_npcList)
     {
         spatialGrid_.add(entity);
@@ -1386,6 +1457,11 @@ auto CZoneEntities::GetEntity(uint16 targid, uint8 filter) -> CBaseEntity*
             if (const auto& PEntity = findEntity(m_charList))
             {
                 return PEntity;
+            }
+
+            if (const auto it = m_botList.find(targid); it != m_botList.end())
+            {
+                return it->second.get();
             }
         }
     }

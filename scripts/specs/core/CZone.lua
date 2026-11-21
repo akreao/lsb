@@ -154,6 +154,35 @@ end
 function CZone:insertDynamicEntity(entityTable)
 end
 
+---@class botSpawnParams
+---@field name string        # Bot name (memory only, never saved)
+---@field race? integer      # xi.race. Default: 1
+---@field face? integer      # Face id. Default: 0
+---@field size? integer      # Model size. Default: 0
+---@field job? integer       # Main job. Default: 1
+---@field level? integer     # Main job level. Default: 1
+---@field subJob? integer    # Support job. Default: 0 (none)
+---@field subLevel? integer  # Support job level. Default: 0
+---@field x? number
+---@field y? number
+---@field z? number
+---@field rot? integer
+---@field gear? table<integer, integer> # xi.slot -> item id
+
+---@param botTable botSpawnParams
+---@return CBaseEntity?
+function CZone:spawnBot(botTable)
+end
+
+---@return nil
+function CZone:despawnBots()
+end
+
+---@nodiscard
+---@return integer
+function CZone:getBotCount()
+end
+
 ---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()

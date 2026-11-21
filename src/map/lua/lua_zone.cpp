@@ -30,6 +30,7 @@
 #include "lua_base_entity.h"
 #include "luautils.h"
 #include "trigger_area.h"
+#include "utils/botutils.h"
 #include "ximesh/ximesh.h"
 #include "zone.h"
 
@@ -285,6 +286,54 @@ auto CLuaZone::insertDynamicEntity(sol::table table) -> CBaseEntity*
 }
 
 /************************************************************************
+ *  Function: spawnBot({ name = 'Name', race = 1, job = 1, level = 10, x = 0, y = 0, z = 0, ... })
+ *  Purpose : Puts a memory-only player bot in the zone (needs map.PLAYER_BOTS_ENABLED)
+ ************************************************************************/
+
+auto CLuaZone::spawnBot(const sol::table& table) -> CCharEntity*
+{
+    botutils::BotSpec spec;
+    spec.name         = table.get_or<std::string>("name", "");
+    spec.race         = table.get_or<uint8>("race", 1);
+    spec.face         = table.get_or<uint8>("face", 0);
+    spec.size         = table.get_or<uint8>("size", 0);
+    spec.mainJob      = table.get_or<uint8>("job", 1);
+    spec.mainLevel    = table.get_or<uint8>("level", 1);
+    spec.subJob       = table.get_or<uint8>("subJob", 0);
+    spec.subLevel     = table.get_or<uint8>("subLevel", 0);
+    spec.pos.x        = table.get_or<float>("x", 0);
+    spec.pos.y        = table.get_or<float>("y", 0);
+    spec.pos.z        = table.get_or<float>("z", 0);
+    spec.pos.rotation = table.get_or<uint8>("rot", 0);
+
+    if (const auto gear = table.get<sol::optional<sol::table>>("gear"))
+    {
+        for (const auto& [key, value] : gear.value())
+        {
+            spec.gear.emplace_back(key.as<uint8>(), value.as<uint16>());
+        }
+    }
+
+    if (spec.name.empty())
+    {
+        ShowWarning("CLuaZone::spawnBot: a bot needs a name");
+        return nullptr;
+    }
+
+    return botutils::SpawnBot(m_pLuaZone, spec);
+}
+
+void CLuaZone::despawnBots()
+{
+    m_pLuaZone->DespawnBots();
+}
+
+auto CLuaZone::getBotCount() -> uint32
+{
+    return static_cast<uint32>(m_pLuaZone->GetBotCount());
+}
+
+/************************************************************************
  *  Function: SetSoloBattleMusic(253)
  *  Purpose : Set Solo Battle music for zone
  ************************************************************************/
@@ -422,6 +471,9 @@ void CLuaZone::Register()
     SOL_REGISTER("getTerrainType", CLuaZone::getTerrainType);
     SOL_REGISTER("getFloorId", CLuaZone::getFloorId);
     SOL_REGISTER("insertDynamicEntity", CLuaZone::insertDynamicEntity);
+    SOL_REGISTER("spawnBot", CLuaZone::spawnBot);
+    SOL_REGISTER("despawnBots", CLuaZone::despawnBots);
+    SOL_REGISTER("getBotCount", CLuaZone::getBotCount);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

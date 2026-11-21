@@ -390,6 +390,10 @@ public:
     bool  isSettingBazaarPrices; // Is setting bazaar prices (temporarily hide bazaar)
     bool  isLinkDead;            // Player is d/cing
 
+    // A server-made player shell: lives only in memory, has no session, and must never be saved.
+    auto isBot() const -> bool;
+    void setBot();
+
     SAVE_CONF playerConfig{}; // Various settings such as chat filter, display head flag, new adventurer, autotarget, etc.
 
     earth_time::time_point lastOnline{}; // UTC time of the last time char zoned or logged out
@@ -869,6 +873,8 @@ private:
     std::vector<std::unique_ptr<Transaction>> transactions_;
 
     maze_t maze_{};
+
+    bool isBot_{ false };
 
     std::array<CItem*, EquipSlotCount> equipped_{};
 

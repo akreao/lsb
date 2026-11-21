@@ -51,7 +51,8 @@ void CCharRecastContainer::Add(xi::RecastType type, const xi::Recast id, timer::
 {
     Recast_t* recast = Load(type, id, duration, chargeTime, maxCharges);
 
-    if (type == xi::RecastType::Ability)
+    // Bots live only in memory.
+    if (type == xi::RecastType::Ability && !m_PChar->isBot())
     {
         db::preparedStmt(
             "INSERT INTO char_recast SET "
@@ -78,7 +79,7 @@ void CCharRecastContainer::Add(xi::RecastType type, const xi::Recast id, timer::
 void CCharRecastContainer::Del(xi::RecastType type)
 {
     CRecastContainer::Del(type);
-    if (type == xi::RecastType::Ability)
+    if (type == xi::RecastType::Ability && !m_PChar->isBot())
     {
         db::preparedStmt("DELETE FROM char_recast WHERE charid = ?", m_PChar->id);
     }
@@ -93,6 +94,11 @@ void CCharRecastContainer::Del(xi::RecastType type)
 void CCharRecastContainer::Del(xi::RecastType type, xi::Recast id)
 {
     CRecastContainer::Del(type, id);
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     db::preparedStmt("DELETE FROM char_recast WHERE charid = ? AND id = ?", m_PChar->id, id);
 }
 
@@ -108,6 +114,11 @@ void CCharRecastContainer::DeleteByIndex(xi::RecastType type, uint8 index)
     if (type == xi::RecastType::Ability)
     {
         PRecastList->at(index).RecastTime = 0s;
+        if (m_PChar->isBot())
+        {
+            return;
+        }
+
         db::preparedStmt("DELETE FROM char_recast WHERE charid = ? AND id = ?", m_PChar->id, PRecastList->at(index).ID);
     }
     else
@@ -125,6 +136,11 @@ void CCharRecastContainer::DeleteByIndex(xi::RecastType type, uint8 index)
 void CCharRecastContainer::ResetAbilities()
 {
     CRecastContainer::ResetAbilities();
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     db::preparedStmt("DELETE FROM char_recast WHERE charid = ? AND id != 0", m_PChar->id);
 }
 
@@ -143,6 +159,11 @@ void CCharRecastContainer::ChangeJob()
                   {
                       return recast.ID != xi::Recast::Special && recast.ID != xi::Recast::Special2;
                   });
+
+    if (m_PChar->isBot())
+    {
+        return;
+    }
 
     db::preparedStmt("DELETE FROM char_recast WHERE charid = ? AND id != 0", m_PChar->id);
 }

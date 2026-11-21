@@ -227,6 +227,10 @@ public:
     virtual void InsertPET(CBaseEntity* PPet);
     virtual void InsertTRUST(CBaseEntity* PTrust);
 
+    auto InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*;
+    void DespawnBots();
+    auto GetBotCount() const -> std::size_t;
+
     virtual void FindPartyForMob(CBaseEntity* PEntity);
 
     // Keep the underlying spatial grid current when an entity moves outside the per-tick resync
