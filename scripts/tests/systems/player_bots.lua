@@ -60,7 +60,11 @@ describe('Player bots', function()
         -- 0x00D: HP percent at 0x1E, in the first packet that carries the bot
         local hpp
         for _, packet in ipairs(player.packets:getIncoming()) do
-            if packet.type == 0x00D and packetReader.readU32(packet.data, 0x04) == bot:getID() and not hpp then
+            if
+                not hpp and
+                packet.type == 0x00D and
+                packetReader.readU32(packet.data, 0x04) == bot:getID()
+            then
                 hpp = packet.data[0x1E]
             end
         end
