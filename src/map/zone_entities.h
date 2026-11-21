@@ -86,6 +86,7 @@ public:
     void DespawnBot(uint16 targid);
     void DespawnAllBots();
     auto GetBotCount() const -> std::size_t;
+    void ForEachBot(FnRef<void(CCharEntity*)> func);
     void InsertNPC(CBaseEntity* PNpc);
     void InsertMOB(CBaseEntity* PMob);
     void InsertPET(CBaseEntity* PPet);
@@ -132,6 +133,8 @@ private:
 
     // aggro check when a mob becomes visible
     void tapMobAggro(CCharEntity* PChar, CMobEntity* PCurrentMob);
+    auto botTick(CCharEntity* PBot, timer::time_point tick) -> Task<void>;
+    void respawnBot(uint16 targid);
 
     // clear and re-file every entity into the grid
     void rebuildSpatialGrid();

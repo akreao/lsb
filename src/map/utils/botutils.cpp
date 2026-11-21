@@ -29,6 +29,9 @@
 #include "common/logging.h"
 #include "common/settings.h"
 
+#include "ai/ai_container.h"
+#include "ai/controllers/bot_controller.h"
+#include "ai/helpers/pathfind.h"
 #include "entities/char_entity.h"
 #include "item_container.h"
 #include "items/item.h"
@@ -37,12 +40,14 @@
 #include "merit.h"
 #include "spell.h"
 #include "zone.h"
+#include "zoneutils.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <string_view>
 #include <type_traits>
+#include <unordered_map>
 #include <unordered_set>
 #include <variant>
 
@@ -58,6 +63,12 @@ std::atomic<uint32> botDatabaseWrites = 0;
 
 // Names of live bots, so two bots never share one. Bots are supported on one map process only.
 std::unordered_set<std::string> liveBotNames;
+
+// What each live bot was built from, so it can come back the same after it dies.
+std::unordered_map<uint32, BotSpec> liveBotSpecs;
+
+// Zone entrances, worked out once per zone.
+std::unordered_map<uint16, std::vector<position_t>> zoneEntrances;
 
 auto newBotId() -> uint32
 {
@@ -185,9 +196,86 @@ auto IsNameTaken(const std::string& name) -> bool
     return rset && rset->rowsCount() != 0;
 }
 
-void ReleaseName(const std::string& name)
+void Release(const uint32 botId, const std::string& name)
 {
     liveBotNames.erase(name);
+    liveBotSpecs.erase(botId);
+}
+
+auto GetSpec(const uint32 botId) -> const BotSpec*
+{
+    const auto it = liveBotSpecs.find(botId);
+    return it != liveBotSpecs.end() ? &it->second : nullptr;
+}
+
+auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&
+{
+    const auto zoneId = static_cast<uint16>(PZone->GetID());
+    if (const auto it = zoneEntrances.find(zoneId); it != zoneEntrances.end())
+    {
+        return it->second;
+    }
+
+    auto& entrances = zoneEntrances[zoneId];
+    zoneutils::ForEachZone(
+        [&](CZone* POther)
+        {
+            for (const auto* PLine : POther->GetZoneLines())
+            {
+                if (static_cast<uint16>(PLine->destinationZoneId) == zoneId)
+                {
+                    entrances.push_back(PLine->destinationPos);
+                }
+            }
+        });
+
+    // Zones reached only by boat, airship or teleport: fall back to the zone's own zone lines.
+    if (entrances.empty())
+    {
+        for (const auto* PLine : PZone->GetZoneLines())
+        {
+            entrances.push_back(PLine->originPos);
+        }
+    }
+
+    return entrances;
+}
+
+auto MayHunt(CCharEntity* PBot) -> bool
+{
+    auto* PZone = PBot->loc.zone;
+    if (PZone == nullptr)
+    {
+        return false;
+    }
+
+    int32 cap = settings::get<uint8>("map.PLAYER_BOTS_MAX_HUNTERS");
+    if (settings::get<bool>("map.PLAYER_BOTS_HUNTERS_YIELD"))
+    {
+        PZone->ForEachChar(
+            [&](CCharEntity* PChar)
+            {
+                if (PChar->PAI->IsEngaged())
+                {
+                    --cap;
+                }
+            });
+    }
+
+    int32 hunting = 0;
+    PZone->ForEachBot(
+        [&](CCharEntity* POther)
+        {
+            if (POther != PBot)
+            {
+                if (const auto* PController = dynamic_cast<CBotController*>(POther->PAI->GetController()); PController && PController->IsHunting())
+                {
+                    ++hunting;
+                }
+            }
+        });
+
+    return hunting < cap;
 }
 
 auto GetBotDatabaseWrites() -> uint32
@@ -317,10 +405,15 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     PRaw->status          = xi::Status::Normal;
     PRaw->animation       = xi::Animation::None;
 
+    // A bot walks and fights on its own: it needs a path finder and its own brain.
+    PRaw->PAI->PathFind = std::make_unique<CPathFind>(PRaw);
+    PRaw->PAI->SetController(std::make_unique<CBotController>(PRaw));
+
     auto* PInserted = PZone->InsertBot(std::move(PBot));
     if (PInserted != nullptr)
     {
         liveBotNames.insert(spec.name);
+        liveBotSpecs[PInserted->id] = spec;
     }
 
     return PInserted;

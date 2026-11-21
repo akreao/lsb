@@ -311,4 +311,13 @@ xi.settings.map =
 
     -- Highest level a bot gets (zones pick lower levels from their monsters).
     PLAYER_BOTS_MAX_LEVEL = 75,
+
+    -- At most this many bots hunt at once in a zone; the rest roam.
+    PLAYER_BOTS_MAX_HUNTERS = 4,
+
+    -- Each real player fighting in a zone lowers that zone's hunter cap by one.
+    PLAYER_BOTS_HUNTERS_YIELD = true,
+
+    -- Seconds a dead bot stays down (so it can be raised) before it comes back at a zone entrance.
+    PLAYER_BOTS_RAISE_WAIT = 180,
 }

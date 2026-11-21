@@ -74,6 +74,7 @@ public:
     auto spawnBot(const sol::table& table) -> CCharEntity*;
     void despawnBots();
     auto getBotCount() -> uint32;
+    auto getBots() -> sol::table;
 
     auto getSoloBattleMusic();
     auto getPartyBattleMusic();

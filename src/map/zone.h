@@ -180,6 +180,7 @@ public:
 
     auto getName() -> const std::string&;
     auto GetZoneLine(uint32 zoneLineID) -> zoneLine_t*;
+    auto GetZoneLines() const -> const zoneLineList_t&;
 
     auto GetSoloBattleMusic() const -> uint16;
     auto GetPartyBattleMusic() const -> uint16;
@@ -230,6 +231,7 @@ public:
     auto InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*;
     void DespawnBots();
     auto GetBotCount() const -> std::size_t;
+    void ForEachBot(FnRef<void(CCharEntity*)> func);
 
     virtual void FindPartyForMob(CBaseEntity* PEntity);
 

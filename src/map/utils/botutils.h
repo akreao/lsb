@@ -73,8 +73,18 @@ auto CanWear(uint16 itemId, uint8 job, uint8 level, uint8 equipSlot) -> bool;
 // True while a live bot has this name, or a real character has it in the database.
 auto IsNameTaken(const std::string& name) -> bool;
 
-// Frees a despawned bot's name.
-void ReleaseName(const std::string& name);
+// Forgets a despawned bot: frees its name and drops its saved spec.
+void Release(uint32 botId, const std::string& name);
+
+// The spec a live bot was built from (for its respawn), or nullptr.
+auto GetSpec(uint32 botId) -> const BotSpec*;
+
+// Where players arrive in the zone: the landing points of the zone lines that lead into it.
+auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&;
+
+// True when the bot may pick a fight: the zone has fewer hunting bots than its cap
+// (map.PLAYER_BOTS_MAX_HUNTERS, one less for each real player fighting there).
+auto MayHunt(CCharEntity* PBot) -> bool;
 
 // Builds a bot and puts it in the zone. Returns nullptr when bots are off or the zone cannot take one.
 auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*;

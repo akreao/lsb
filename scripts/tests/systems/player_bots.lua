@@ -233,6 +233,84 @@ describe('Player bots', function()
         assert(spawnBot('Twinbot') == nil, 'a second bot took a live name')
     end)
 
+    -- A normal mob at least 40 yalms from the player, so no real player is near the bot's prey.
+    local function findPrey()
+        local zone = assert(player:getZone())
+        local here = { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }
+        for _, mob in ipairs(zone:getMobs()) do
+            local there = { x = mob:getXPos(), y = mob:getYPos(), z = mob:getZPos() }
+            if
+                mob:isSpawned() and
+                mob:isAlive() and
+                not mob:isNM() and
+                not mob:isEngaged() and
+                utils.distance(here, there) > 40
+            then
+                return mob
+            end
+        end
+    end
+
+    local function spawnHunter(name, mob)
+        return assert(xi.bots.spawn(assert(player:getZone()),
+            { x = mob:getXPos() + 3, y = mob:getYPos(), z = mob:getZPos() },
+            { name = name, job = xi.job.WAR, level = mob:getMainLvl() + 3 }))
+    end
+
+    it('hunts a mob that fits its level on its own, and writes nothing', function()
+        local writesBefore = GetBotDatabaseWrites()
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        local bot = spawnHunter('Hunterbot', mob)
+
+        local engaged = false
+        for _ = 1, 30 do
+            xi.test.world:skipTime(1)
+            engaged = engaged or bot:isEngaged()
+        end
+
+        assert(engaged, 'bot never engaged a mob')
+
+        for _ = 1, 150 do
+            if not mob:isAlive() then
+                break
+            end
+
+            xi.test.world:skipTime(1)
+        end
+
+        assert(not mob:isAlive() or mob:getHPP() < 100, 'bot never hurt its prey')
+        assert(GetBotDatabaseWrites() == writesBefore, 'hunting wrote to the database')
+    end)
+
+    it('keeps to the hunter cap', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 1)
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        local first  = spawnHunter('Firstbot', mob)
+        local second = spawnHunter('Secondbot', mob)
+
+        local bothEngaged = false
+        for _ = 1, 30 do
+            xi.test.world:skipTime(1)
+            bothEngaged = bothEngaged or (first:isEngaged() and second:isEngaged())
+        end
+
+        assert(not bothEngaged, 'two bots hunted with a cap of one')
+    end)
+
+    it('comes back at a zone entrance when nobody raises it', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_RAISE_WAIT', 5)
+        local bot = assert(spawnBot('Diebot'))
+        bot:setHP(0)
+        xi.test.world:skipTime(2)
+        assert(GetZone(zoneId):getBotCount() == 1, 'dead bot left before its raise wait')
+
+        xi.test.world:skipTime(10)
+
+        local bots = GetZone(zoneId):getBots()
+        assert(#bots == 1, 'dead bot did not come back')
+        assert(bots[1]:getName() == 'Diebot' and bots[1]:isAlive(), 'the bot that came back is not alive')
+    end)
+
     it('can be cleared', function()
         local bot = assert(spawnBot('Clearbot'))
         local botId = bot:getID()

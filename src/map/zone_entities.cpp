@@ -57,6 +57,7 @@
 
 #include "lua/luautils.h"
 
+#include "ai/controllers/bot_controller.h"
 #include "battlefield.h"
 #include "data/enums/weather.h"
 #include "items/transactions/synth.h"
@@ -309,8 +310,24 @@ void CZoneEntities::DespawnBot(const uint16 targid)
         }
     }
 
+    // Mobs must forget the bot before it is freed: their hate lists and claims point at it.
+    FOR_EACH_PAIR_CAST_SECOND(CMobEntity*, PCurrentMob, m_mobList)
+    {
+        PCurrentMob->PEnmityContainer->Clear(PBot->id);
+        if (PCurrentMob->m_OwnerID.UniqueNo == PBot->id)
+        {
+            PCurrentMob->m_OwnerID.clean();
+            PCurrentMob->updatemask |= UPDATE_STATUS;
+        }
+
+        if (PCurrentMob->battleTarget() == PBot)
+        {
+            PCurrentMob->setBattleTarget(std::nullopt);
+        }
+    }
+
     spatialGrid_.remove(PBot);
-    botutils::ReleaseName(PBot->getName());
+    botutils::Release(PBot->id, PBot->getName());
 
     if (PBot->PTreasurePool != nullptr)
     {
@@ -333,6 +350,42 @@ void CZoneEntities::DespawnAllBots()
 auto CZoneEntities::GetBotCount() const -> std::size_t
 {
     return m_botList.size();
+}
+
+void CZoneEntities::ForEachBot(FnRef<void(CCharEntity*)> func)
+{
+    for (const auto& [_, PBot] : m_botList)
+    {
+        func(PBot.get());
+    }
+}
+
+void CZoneEntities::respawnBot(const uint16 targid)
+{
+    const auto it = m_botList.find(targid);
+    if (it == m_botList.end())
+    {
+        return;
+    }
+
+    const auto* PSpec = botutils::GetSpec(it->second->id);
+    if (PSpec == nullptr)
+    {
+        DespawnBot(targid);
+        return;
+    }
+
+    // Copy before the despawn drops the saved spec.
+    auto spec = *PSpec;
+
+    const auto& entrances = botutils::GetEntrances(m_zone);
+    if (!entrances.empty())
+    {
+        spec.pos = entrances[xirand::GetRandomNumber(entrances.size())];
+    }
+
+    DespawnBot(targid);
+    botutils::SpawnBot(m_zone, spec);
 }
 
 void CZoneEntities::InsertAlly(CBaseEntity* PMob)
@@ -2013,6 +2066,45 @@ auto CZoneEntities::trustTick(CTrustEntity* PTrust, timer::time_point tick) -> T
     co_return;
 }
 
+auto CZoneEntities::botTick(CCharEntity* PBot, timer::time_point tick) -> Task<void>
+{
+    TracyZoneScoped;
+    TracyZoneString(PBot->getName());
+
+    PBot->PRecastContainer->Check();
+
+    PBot->StatusEffectContainer->CheckEffectsExpiry(tick);
+    if (tick > m_EffectCheckTime)
+    {
+        PBot->StatusEffectContainer->TickRegen(tick);
+        PBot->StatusEffectContainer->TickEffects(tick);
+    }
+
+    co_await PBot->PAI->Tick(tick);
+
+    if (PBot->PTreasurePool)
+    {
+        PBot->PTreasurePool->checkItems(tick);
+    }
+
+    // Mobs notice bots as they notice players.
+    if (PBot->isAlive())
+    {
+        spatialGrid_.forEachInRange(
+            PBot->loc.p,
+            ENTITY_RENDER_DISTANCE,
+            [&](CBaseEntity* entity)
+            {
+                if (entity->objtype == TYPE_MOB)
+                {
+                    tapMobAggro(PBot, static_cast<CMobEntity*>(entity));
+                }
+            });
+    }
+
+    co_return;
+}
+
 auto CZoneEntities::charTick(CCharEntity* PChar, timer::time_point tick) -> Task<void>
 {
     TracyZoneScoped;
@@ -2139,6 +2231,30 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     for (auto* PEntity : tickEntityScratch_)
     {
         co_await charTick(static_cast<CCharEntity*>(PEntity), tick);
+    }
+
+    tickEntityScratch_.clear();
+    for (const auto& [_, PBot] : m_botList)
+    {
+        tickEntityScratch_.push_back(PBot.get());
+    }
+
+    std::vector<uint16> botsToRespawn;
+    for (auto* PEntity : tickEntityScratch_)
+    {
+        auto* PBot = static_cast<CCharEntity*>(PEntity);
+        co_await botTick(PBot, tick);
+
+        if (const auto* PController = dynamic_cast<CBotController*>(PBot->PAI->GetController()); PController && PController->WantsRespawn())
+        {
+            botsToRespawn.push_back(PBot->targid);
+        }
+    }
+
+    // A dead bot that nobody raised comes back at a zone entrance, after the loop so the list is not changed under it.
+    for (const uint16 targid : botsToRespawn)
+    {
+        respawnBot(targid);
     }
 
     //

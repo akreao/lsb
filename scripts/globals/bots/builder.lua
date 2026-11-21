@@ -1,6 +1,7 @@
 -----------------------------------
 -- Player bots: picks a bot's name, looks, job, level and gear (custom, not retail)
 -----------------------------------
+require('scripts/globals/bots/gambits')
 require('scripts/globals/bots/gear')
 -----------------------------------
 xi = xi or {}
@@ -279,8 +280,13 @@ xi.bots.spawn = function(zone, pos, overrides)
     for _ = 1, 10 do
         spec.name = overrides.name or xi.bots.randomName()
         local bot = zone:spawnBot(spec)
-        if bot or overrides.name then
+        if bot then
+            xi.bots.applyGambits(bot)
             return bot
+        end
+
+        if overrides.name then
+            return nil
         end
     end
 

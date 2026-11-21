@@ -333,6 +333,18 @@ auto CLuaZone::getBotCount() -> uint32
     return static_cast<uint32>(m_pLuaZone->GetBotCount());
 }
 
+auto CLuaZone::getBots() -> sol::table
+{
+    auto table = lua.create_table();
+    m_pLuaZone->ForEachBot(
+        [&table](CCharEntity* PBot)
+        {
+            table.add(CLuaBaseEntity(PBot));
+        });
+
+    return table;
+}
+
 /************************************************************************
  *  Function: SetSoloBattleMusic(253)
  *  Purpose : Set Solo Battle music for zone
@@ -474,6 +486,7 @@ void CLuaZone::Register()
     SOL_REGISTER("spawnBot", CLuaZone::spawnBot);
     SOL_REGISTER("despawnBots", CLuaZone::despawnBots);
     SOL_REGISTER("getBotCount", CLuaZone::getBotCount);
+    SOL_REGISTER("getBots", CLuaZone::getBots);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

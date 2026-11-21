@@ -184,6 +184,11 @@ function CZone:getBotCount()
 end
 
 ---@nodiscard
+---@return CBaseEntity[]
+function CZone:getBots()
+end
+
+---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()
 end

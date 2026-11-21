@@ -322,6 +322,11 @@ auto CZone::CanUseMisc(xi::ZoneMisc misc) const -> bool
     return (m_miscMask & misc) == misc;
 }
 
+auto CZone::GetZoneLines() const -> const zoneLineList_t&
+{
+    return m_zoneLineList;
+}
+
 auto CZone::GetZoneLine(uint32 zoneLineID) -> zoneLine_t*
 {
     const auto it = std::ranges::find(m_zoneLineList, zoneLineID, &zoneLine_t::zoneLineId);
@@ -890,6 +895,11 @@ void CZone::DespawnBots()
 auto CZone::GetBotCount() const -> std::size_t
 {
     return m_zoneEntities->GetBotCount();
+}
+
+void CZone::ForEachBot(FnRef<void(CCharEntity*)> func)
+{
+    m_zoneEntities->ForEachBot(func);
 }
 
 /************************************************************************

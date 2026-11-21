@@ -84,6 +84,7 @@
 #include "ai/states/range_state.h"
 #include "ai/states/weaponskill_state.h"
 
+#include "ai/controllers/bot_controller.h"
 #include "ai/controllers/mob_controller.h"
 #include "ai/controllers/trust_controller.h"
 
@@ -16564,6 +16565,32 @@ void CLuaBaseEntity::trustPartyMessage(uint32 message_id) const
     }
 }
 
+namespace
+{
+
+// The gambits of a trust or of a player bot, or nullptr for anything else.
+auto getGambits(CBaseEntity* PEntity) -> gambits::CGambitsContainer*
+{
+    if (PEntity == nullptr || PEntity->PAI == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (PEntity->objtype == TYPE_TRUST)
+    {
+        return static_cast<CTrustController*>(PEntity->PAI->GetController())->m_GambitsContainer.get();
+    }
+
+    if (auto* PController = dynamic_cast<CBotController*>(PEntity->PAI->GetController()))
+    {
+        return PController->Gambits();
+    }
+
+    return nullptr;
+}
+
+} // namespace
+
 /************************************************************************
  *  Function: addGambit(targetSelector, conditionsTable, actionsTable, retry)
  *  conditionsTable: { condition, arg1 }
@@ -16582,8 +16609,8 @@ void CLuaBaseEntity::trustPartyMessage(uint32 message_id) const
 
 auto CLuaBaseEntity::addGambit(uint16 targ, const sol::table& predicates, const sol::table& reactions, const sol::object& retry) -> std::string
 {
-    const auto* PTrust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
-    if (!PTrust)
+    auto* PGambits = getGambits(m_PBaseEntity);
+    if (PGambits == nullptr)
     {
         ShowWarning("Invalid Entity calling function (%s).", m_PBaseEntity->getName());
         return {};
@@ -16689,13 +16716,12 @@ auto CLuaBaseEntity::addGambit(uint16 targ, const sol::table& predicates, const 
 
     // Optional
     const uint16 retryDelay = (retry != sol::lua_nil) ? retry.as<uint16>() : 0;
-    const auto*  controller = static_cast<CTrustController*>(PTrust->PAI->GetController());
 
     g.retry_delay     = retryDelay;
     g.target_selector = targetSelector;
-    g.identifier      = controller->m_GambitsContainer->NewGambitIdentifier(g);
+    g.identifier      = PGambits->NewGambitIdentifier(g);
 
-    return controller->m_GambitsContainer->AddGambit(g);
+    return PGambits->AddGambit(g);
 }
 
 /************************************************************************
@@ -16708,16 +16734,14 @@ auto CLuaBaseEntity::addGambit(uint16 targ, const sol::table& predicates, const 
 
 void CLuaBaseEntity::removeGambit(const std::string& id)
 {
-    const auto* PTrust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
-    if (!PTrust)
+    auto* PGambits = getGambits(m_PBaseEntity);
+    if (PGambits == nullptr)
     {
         ShowWarning("Invalid Entity calling function (%s).", m_PBaseEntity->getName());
         return;
     }
 
-    auto* controller = static_cast<CTrustController*>(PTrust->PAI->GetController());
-
-    controller->m_GambitsContainer->RemoveGambit(id);
+    PGambits->RemoveGambit(id);
 }
 
 /************************************************************************
@@ -16729,16 +16753,14 @@ void CLuaBaseEntity::removeGambit(const std::string& id)
 
 void CLuaBaseEntity::removeAllGambits()
 {
-    const auto* PTrust = dynamic_cast<CTrustEntity*>(m_PBaseEntity);
-    if (!PTrust)
+    auto* PGambits = getGambits(m_PBaseEntity);
+    if (PGambits == nullptr)
     {
         ShowWarning("Invalid Entity calling function (%s).", m_PBaseEntity->getName());
         return;
     }
 
-    auto* controller = static_cast<CTrustController*>(PTrust->PAI->GetController());
-
-    controller->m_GambitsContainer->RemoveAllGambits();
+    PGambits->RemoveAllGambits();
 }
 
 /************************************************************************
@@ -16750,7 +16772,8 @@ void CLuaBaseEntity::removeAllGambits()
 
 void CLuaBaseEntity::setTrustTPSkillSettings(uint16 trigger, uint16 select, const sol::object& value)
 {
-    if (m_PBaseEntity->objtype != TYPE_TRUST)
+    auto* PGambits = getGambits(m_PBaseEntity);
+    if (PGambits == nullptr)
     {
         ShowWarning("Invalid Entity calling function (%s).", m_PBaseEntity->getName());
         return;
@@ -16761,12 +16784,9 @@ void CLuaBaseEntity::setTrustTPSkillSettings(uint16 trigger, uint16 select, cons
     // Optional
     uint16 tp_value = (value != sol::lua_nil) ? value.as<uint16>() : 0;
 
-    auto* trust      = static_cast<CTrustEntity*>(m_PBaseEntity);
-    auto* controller = static_cast<CTrustController*>(trust->PAI->GetController());
-
-    controller->m_GambitsContainer->tp_trigger = static_cast<G_TP_TRIGGER>(trigger);
-    controller->m_GambitsContainer->tp_select  = static_cast<G_SELECT>(select);
-    controller->m_GambitsContainer->tp_value   = tp_value;
+    PGambits->tp_trigger = static_cast<G_TP_TRIGGER>(trigger);
+    PGambits->tp_select  = static_cast<G_SELECT>(select);
+    PGambits->tp_value   = tp_value;
 }
 
 /************************************************************************
