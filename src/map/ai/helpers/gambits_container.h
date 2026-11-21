@@ -27,9 +27,8 @@
 #include <common/types/hash_map.h>
 
 #include "ai/ai_container.h"
-#include "ai/controllers/trust_controller.h"
+#include "ai/helpers/gambits_host.h"
 #include "entities/char_entity.h"
-#include "entities/trust_entity.h"
 #include "mob_spell_container.h"
 #include "status_effect.h"
 #include "status_effect_container.h"
@@ -290,8 +289,9 @@ struct TrustSkill_t
 class CGambitsContainer
 {
 public:
-    CGambitsContainer(CTrustEntity* trust)
-    : POwner(trust)
+    CGambitsContainer(CBattleEntity* owner, IGambitsHost* host)
+    : POwner(owner)
+    , m_host(host)
     {
     }
 
@@ -317,7 +317,8 @@ private:
     auto PartyHasHealer() -> bool;
     auto PartyHasTank() -> bool;
 
-    CTrustEntity*         POwner;
+    CBattleEntity*        POwner;
+    IGambitsHost*         m_host;
     timer::time_point     m_lastAction;
     std::vector<Gambit_t> gambits;
 

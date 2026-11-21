@@ -26,6 +26,8 @@
 
 #include "mob_controller.h"
 
+#include "ai/helpers/gambits_host.h"
+
 class CCharEntity;
 class CTrustEntity;
 
@@ -36,7 +38,7 @@ class CGambitsContainer;
 
 }
 
-class CTrustController : public CMobController
+class CTrustController : public CMobController, public gambits::IGambitsHost
 {
 public:
     CTrustController(CCharEntity*, CTrustEntity*);
@@ -57,6 +59,12 @@ public:
 
     auto GetTopEnmity() const -> CBattleEntity*;
     auto GetPartyPosition() const -> uint8;
+
+    auto GambitLeader() const -> CCharEntity* override;
+    auto GambitSpells() const -> CMobSpellContainer* override;
+    auto GambitTopEnmity() const -> CBattleEntity* override;
+    auto GambitPartyPosition() const -> uint8 override;
+    auto GambitMobSkill(EntityId target, uint16 skillId) -> bool override;
 
     std::unique_ptr<gambits::CGambitsContainer> m_GambitsContainer;
 

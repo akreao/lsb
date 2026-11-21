@@ -56,7 +56,7 @@ enum TRUST_MOVEMENT_TYPE : int8
 
 CTrustController::CTrustController(CCharEntity* PChar, CTrustEntity* PTrust)
 : CMobController(PTrust)
-, m_GambitsContainer(std::make_unique<gambits::CGambitsContainer>(PTrust))
+, m_GambitsContainer(std::make_unique<gambits::CGambitsContainer>(PTrust, this))
 , m_failedRepositionAttempts(0)
 , m_InTransit(false)
 {
@@ -671,4 +671,29 @@ auto CTrustController::GetPartyPosition() const -> uint8
         }
     }
     return 0;
+}
+
+auto CTrustController::GambitLeader() const -> CCharEntity*
+{
+    return static_cast<CCharEntity*>(POwner->PMaster);
+}
+
+auto CTrustController::GambitSpells() const -> CMobSpellContainer*
+{
+    return static_cast<CMobEntity*>(POwner)->SpellContainer;
+}
+
+auto CTrustController::GambitTopEnmity() const -> CBattleEntity*
+{
+    return GetTopEnmity();
+}
+
+auto CTrustController::GambitPartyPosition() const -> uint8
+{
+    return GetPartyPosition();
+}
+
+auto CTrustController::GambitMobSkill(const EntityId target, const uint16 skillId) -> bool
+{
+    return MobSkill(target, skillId, std::nullopt);
 }

@@ -29,6 +29,7 @@
 #include "ai/states/range_state.h"
 #include "ai/states/weaponskill_state.h"
 #include "enmity_container.h"
+#include "entities/trust_entity.h"
 #include "notoriety_container.h"
 #include "spell.h"
 #include "utils/battleutils.h"
@@ -107,8 +108,8 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
 {
     TracyZoneScoped;
 
-    auto* controller      = static_cast<CTrustController*>(POwner->PAI->GetController());
-    uint8 currentPartyPos = controller->GetPartyPosition();
+    auto* controller      = POwner->PAI->GetController();
+    uint8 currentPartyPos = m_host->GambitPartyPosition();
     auto  position_offset = static_cast<std::chrono::milliseconds>(currentPartyPos * 100);
 
     if ((tick + position_offset) < m_lastAction)
@@ -168,7 +169,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::PARTY)
         {
             // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember))
                     {
@@ -179,7 +180,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         }
         else if (targetType == G_TARGET::MASTER)
         {
-            potentialTargets.push_back(POwner->PMaster);
+            potentialTargets.push_back(m_host->GambitLeader());
         }
         else if (targetType == G_TARGET::PARTY_DEAD)
         {
@@ -187,7 +188,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             if (mob != nullptr)
             {
                 // clang-format off
-                    static_cast<CCharEntity*>(POwner->PMaster)->ForParty([&](CBattleEntity* PMember) {
+                    m_host->GambitLeader()->ForParty([&](CBattleEntity* PMember) {
                         if (PMember->isDead())
                         {
                             potentialTargets.push_back(PMember);
@@ -199,7 +200,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::TANK)
         {
             // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
                         (PMember->GetMJob() == xi::Job::PLD || PMember->GetMJob() == xi::Job::RUN))
@@ -212,7 +213,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::MELEE)
         {
             // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
                         melee_jobs.contains(PMember->GetMJob()))
@@ -225,7 +226,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::RANGED)
         {
             // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
                         (PMember->GetMJob() == xi::Job::RNG || PMember->GetMJob() == xi::Job::COR))
@@ -238,7 +239,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::CASTER)
         {
             // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember) &&
                         caster_jobs.contains(PMember->GetMJob()))
@@ -253,7 +254,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             if (auto* PMob = dynamic_cast<CMobEntity*>(POwner->GetBattleTarget()))
             {
                 // clang-format off
-                    static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                    m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                     {
                         if (isValidMember(target, PMember) &&
                             PMob->PEnmityContainer->GetHighestEnmity() == PMember)
@@ -267,7 +268,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         else if (targetType == G_TARGET::CURILLA)
         {
             // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (isValidMember(target, PMember))
                     {
@@ -329,11 +330,11 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
         {
             if (action.select == G_SELECT::SPECIFIC)
             {
-                return POwner->SpellContainer->GetAvailable(static_cast<SpellID>(action.select_arg));
+                return m_host->GambitSpells()->GetAvailable(static_cast<SpellID>(action.select_arg));
             }
             else if (action.select == G_SELECT::HIGHEST)
             {
-                return POwner->SpellContainer->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
+                return m_host->GambitSpells()->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
             }
             else if (action.select == G_SELECT::LOWEST)
             {
@@ -342,23 +343,23 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             }
             else if (action.select == G_SELECT::BEST_INDI)
             {
-                auto* PMaster = static_cast<CCharEntity*>(POwner->PMaster);
-                return POwner->SpellContainer->GetBestIndiSpell(PMaster);
+                auto* PMaster = m_host->GambitLeader();
+                return m_host->GambitSpells()->GetBestIndiSpell(PMaster);
             }
             else if (action.select == G_SELECT::ENTRUSTED)
             {
-                auto* PMaster = static_cast<CCharEntity*>(POwner->PMaster);
+                auto* PMaster = m_host->GambitLeader();
                 // Entrusted spells target master
-                return POwner->SpellContainer->GetBestEntrustedSpell(PMaster);
+                return m_host->GambitSpells()->GetBestEntrustedSpell(PMaster);
             }
             else if (action.select == G_SELECT::BEST_AGAINST_TARGET)
             {
                 auto spell_to_cast = static_cast<SpellID>(action.select_arg);
-                return POwner->SpellContainer->GetBestAgainstTargetWeakness(resolvedTarget, spell_to_cast);
+                return m_host->GambitSpells()->GetBestAgainstTargetWeakness(resolvedTarget, spell_to_cast);
             }
             else if (action.select == G_SELECT::DEF_BAR_ELEMENT)
             {
-                auto maybeSpellId = POwner->SpellContainer->GetAvailable(SpellID::Barfire);
+                auto maybeSpellId = m_host->GambitSpells()->GetAvailable(SpellID::Barfire);
                 auto element      = POwner->GetLocalVar("[Gambit]CastElement");
 
                 if (element != 0)
@@ -391,28 +392,28 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             }
             else if (action.select == G_SELECT::STORM_DAY)
             {
-                return POwner->SpellContainer->GetStormDay();
+                return m_host->GambitSpells()->GetStormDay();
             }
             else if (action.select == G_SELECT::HELIX_DAY)
             {
-                return POwner->SpellContainer->GetHelixDay();
+                return m_host->GambitSpells()->GetHelixDay();
             }
             else if (action.select == G_SELECT::EN_MOB_WEAKNESS)
             {
                 CBattleEntity* battleTarget = POwner->GetBattleTarget();
-                return POwner->SpellContainer->EnSpellAgainstTargetWeakness(battleTarget);
+                return m_host->GambitSpells()->EnSpellAgainstTargetWeakness(battleTarget);
             }
             else if (action.select == G_SELECT::STORM_MOB_WEAKNESS)
             {
-                return POwner->SpellContainer->StormDayAgainstTargetWeakness(resolvedTarget);
+                return m_host->GambitSpells()->StormDayAgainstTargetWeakness(resolvedTarget);
             }
             else if (action.select == G_SELECT::HELIX_MOB_WEAKNESS)
             {
-                return POwner->SpellContainer->HelixAgainstTargetWeakness(resolvedTarget);
+                return m_host->GambitSpells()->HelixAgainstTargetWeakness(resolvedTarget);
             }
             else if (action.select == G_SELECT::RANDOM)
             {
-                return POwner->SpellContainer->GetSpell();
+                return m_host->GambitSpells()->GetSpell();
             }
             else if (action.select == G_SELECT::MB_ELEMENT)
             {
@@ -435,9 +436,9 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 {
                     for (auto& chain_element : battleutils::GetSkillchainMagicElement(resonance_element))
                     {
-                        for (size_t ii = POwner->SpellContainer->m_damageList.size(); ii > 0; --ii)
+                        for (size_t ii = m_host->GambitSpells()->m_damageList.size(); ii > 0; --ii)
                         {
-                            auto spell         = POwner->SpellContainer->m_damageList[ii - 1];
+                            auto spell         = m_host->GambitSpells()->m_damageList[ii - 1];
                             auto spell_element = spell::GetSpell(spell)->getElement();
                             if (spell_element == chain_element)
                             {
@@ -544,7 +545,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     // Fallback to original, keeps existing behavior for selection
                     if (action.select == G_SELECT::SPECIFIC)
                     {
-                        auto spell_id = POwner->SpellContainer->GetAvailable(static_cast<SpellID>(action.select_arg));
+                        auto spell_id = m_host->GambitSpells()->GetAvailable(static_cast<SpellID>(action.select_arg));
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -553,7 +554,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::HIGHEST)
                     {
-                        auto spell_id = POwner->SpellContainer->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
+                        auto spell_id = m_host->GambitSpells()->GetBestAvailable(static_cast<SPELLFAMILY>(action.select_arg));
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -562,8 +563,8 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::BEST_INDI)
                     {
-                        auto* PMaster  = static_cast<CCharEntity*>(POwner->PMaster);
-                        auto  spell_id = POwner->SpellContainer->GetBestIndiSpell(PMaster);
+                        auto* PMaster  = m_host->GambitLeader();
+                        auto  spell_id = m_host->GambitSpells()->GetBestIndiSpell(PMaster);
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -572,8 +573,8 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::ENTRUSTED)
                     {
-                        auto* PMaster  = static_cast<CCharEntity*>(POwner->PMaster);
-                        auto  spell_id = POwner->SpellContainer->GetBestEntrustedSpell(PMaster);
+                        auto* PMaster  = m_host->GambitLeader();
+                        auto  spell_id = m_host->GambitSpells()->GetBestEntrustedSpell(PMaster);
                         target         = PMaster;
                         if (spell_id.has_value())
                         {
@@ -584,7 +585,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     else if (action.select == G_SELECT::BEST_AGAINST_TARGET)
                     {
                         auto spell_to_cast = static_cast<SpellID>(action.select_arg);
-                        auto spell_id      = POwner->SpellContainer->GetBestAgainstTargetWeakness(target, spell_to_cast);
+                        auto spell_id      = m_host->GambitSpells()->GetBestAgainstTargetWeakness(target, spell_to_cast);
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -593,7 +594,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::DEF_BAR_ELEMENT)
                     {
-                        auto maybeSpellId = POwner->SpellContainer->GetAvailable(SpellID::Barfire);
+                        auto maybeSpellId = m_host->GambitSpells()->GetAvailable(SpellID::Barfire);
                         auto element      = POwner->GetLocalVar("[Gambit]CastElement");
 
                         if (element != 0)
@@ -631,7 +632,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::STORM_DAY)
                     {
-                        auto spell_id = POwner->SpellContainer->GetStormDay();
+                        auto spell_id = m_host->GambitSpells()->GetStormDay();
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -640,7 +641,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::HELIX_DAY)
                     {
-                        auto spell_id = POwner->SpellContainer->GetHelixDay();
+                        auto spell_id = m_host->GambitSpells()->GetHelixDay();
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -650,7 +651,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     else if (action.select == G_SELECT::EN_MOB_WEAKNESS)
                     {
                         CBattleEntity* battleTarget = POwner->GetBattleTarget();
-                        auto           spell_id     = POwner->SpellContainer->EnSpellAgainstTargetWeakness(battleTarget);
+                        auto           spell_id     = m_host->GambitSpells()->EnSpellAgainstTargetWeakness(battleTarget);
                         if (spell_id.has_value())
                         {
                             controller->Cast(POwner->entityId(), spell_id.value());
@@ -659,7 +660,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::STORM_MOB_WEAKNESS)
                     {
-                        auto spell_id = POwner->SpellContainer->StormDayAgainstTargetWeakness(target);
+                        auto spell_id = m_host->GambitSpells()->StormDayAgainstTargetWeakness(target);
                         if (spell_id.has_value())
                         {
                             controller->Cast(POwner->entityId(), spell_id.value());
@@ -668,7 +669,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::HELIX_MOB_WEAKNESS)
                     {
-                        auto spell_id = POwner->SpellContainer->HelixAgainstTargetWeakness(target);
+                        auto spell_id = m_host->GambitSpells()->HelixAgainstTargetWeakness(target);
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -677,7 +678,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     }
                     else if (action.select == G_SELECT::RANDOM)
                     {
-                        auto spell_id = POwner->SpellContainer->GetSpell();
+                        auto spell_id = m_host->GambitSpells()->GetSpell();
                         if (spell_id.has_value())
                         {
                             controller->Cast(target->entityId(), spell_id.value());
@@ -708,9 +709,9 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                             for (auto& chain_element : battleutils::GetSkillchainMagicElement(resonance_element))
                             {
                                 // NOTE: Iterating this list in reverse guarantees finding the best match
-                                for (size_t ii = POwner->SpellContainer->m_damageList.size(); ii > 0; --ii)
+                                for (size_t ii = m_host->GambitSpells()->m_damageList.size(); ii > 0; --ii)
                                 {
-                                    auto spell         = POwner->SpellContainer->m_damageList[ii - 1];
+                                    auto spell         = m_host->GambitSpells()->m_damageList[ii - 1];
                                     auto spell_element = spell::GetSpell(spell)->getElement();
                                     if (spell_element == chain_element)
                                     {
@@ -935,7 +936,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
             {
                 if (action.select == G_SELECT::SPECIFIC)
                 {
-                    controller->MobSkill(target->entityId(), action.select_arg, std::nullopt);
+                    m_host->GambitMobSkill(target->entityId(), action.select_arg);
                     executedAnyAction = true;
                 }
             }
@@ -949,7 +950,7 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                     "sp40"
                 };
 
-                if (POwner->loc.zone == nullptr || !POwner->PMaster || POwner->PAI->PathFind->IsFollowingPath())
+                if (POwner->loc.zone == nullptr || !m_host->GambitLeader() || POwner->PAI->PathFind->IsFollowingPath())
                 {
                     continue;
                 }
@@ -1009,7 +1010,6 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
         return false;
     }
 
-    auto*             controller = static_cast<CTrustController*>(POwner->PAI->GetController());
     std::vector<bool> predicateResults;
 
     // Iterate and collect results from all predicates in the group
@@ -1198,12 +1198,12 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
             }
             case G_CONDITION::HAS_TOP_ENMITY:
             {
-                predicateResults.push_back((controller->GetTopEnmity()) ? controller->GetTopEnmity()->targid == POwner->targid : false);
+                predicateResults.push_back((m_host->GambitTopEnmity()) ? m_host->GambitTopEnmity()->targid == POwner->targid : false);
                 continue;
             }
             case G_CONDITION::NOT_HAS_TOP_ENMITY:
             {
-                predicateResults.push_back((controller->GetTopEnmity()) ? controller->GetTopEnmity()->targid != POwner->targid : false);
+                predicateResults.push_back((m_host->GambitTopEnmity()) ? m_host->GambitTopEnmity()->targid != POwner->targid : false);
                 continue;
             }
             case G_CONDITION::SC_AVAILABLE:
@@ -1412,14 +1412,14 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
             case G_CONDITION::VAL_URIEL_CHECK:
             {
                 bool  canUseUriel = false;
-                auto* PMaster     = dynamic_cast<CCharEntity*>(POwner->PMaster);
+                auto* PMaster     = m_host->GambitLeader();
                 auto* PMob        = dynamic_cast<CMobEntity*>(PMaster->GetBattleTarget());
 
                 if (PMob != nullptr && PMob->PEnmityContainer != nullptr)
                 {
                     bool masterHasEnmity         = PMob->PEnmityContainer->HasID(PMaster->id);
                     bool valHasEnmity            = PMob->PEnmityContainer->HasID(POwner->id);
-                    bool valHasTopEnmity         = (controller->GetTopEnmity()) ? controller->GetTopEnmity()->targid == POwner->targid : false;
+                    bool valHasTopEnmity         = (m_host->GambitTopEnmity()) ? m_host->GambitTopEnmity()->targid == POwner->targid : false;
                     bool masterHasOffTargetAggro = false;
 
                     if (PMaster->PNotorietyContainer != nullptr && PMaster->PNotorietyContainer->hasEnmity())
@@ -1547,7 +1547,7 @@ auto CGambitsContainer::TryTrustSkill() -> bool
             {
                 bool result = false;
                 // clang-format off
-                static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+                m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
                 {
                     if (tp_value <= 1000) // If the value provided by the script is missing or too low
                     {
@@ -1676,7 +1676,7 @@ auto CGambitsContainer::TryTrustSkill() -> bool
             }
             case G_SELECT::SPECIAL_AYAME:
             {
-                auto* PMaster                = static_cast<CCharEntity*>(POwner->PMaster);
+                auto* PMaster                = m_host->GambitLeader();
                 auto* PMasterController      = static_cast<CPlayerController*>(PMaster->PAI->GetController());
                 auto* PMasterLastWeaponSkill = PMasterController->getLastWeaponSkill();
 
@@ -1788,7 +1788,7 @@ auto CGambitsContainer::TryTrustSkill() -> bool
 
     if (chosen_skill)
     {
-        auto* controller = static_cast<CTrustController*>(POwner->PAI->GetController());
+        auto* controller = POwner->PAI->GetController();
         if (chosen_skill->skill_type == G_REACTION::WS)
         {
             CWeaponSkill* PWeaponSkill = battleutils::GetWeaponSkill(chosen_skill->skill_id);
@@ -1818,7 +1818,7 @@ auto CGambitsContainer::TryTrustSkill() -> bool
             {
                 target = POwner->GetBattleTarget();
             }
-            controller->MobSkill(target->entityId(), chosen_skill->skill_id, std::nullopt);
+            m_host->GambitMobSkill(target->entityId(), chosen_skill->skill_id);
         }
         return true;
     }
@@ -1830,7 +1830,7 @@ auto CGambitsContainer::PartyHasHealer() -> bool
 {
     bool hasHealer = false;
     // clang-format off
-        static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+        m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
         {
             auto jobType = PMember->GetMJob();
 
@@ -1848,7 +1848,7 @@ auto CGambitsContainer::PartyHasTank() -> bool
 {
     bool hasTank = false;
     // clang-format off
-        static_cast<CCharEntity*>(POwner->PMaster)->ForPartyWithTrusts([&](CBattleEntity* PMember)
+        m_host->GambitLeader()->ForPartyWithTrusts([&](CBattleEntity* PMember)
         {
             auto jobType = PMember->GetMJob();
 

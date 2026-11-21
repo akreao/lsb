@@ -29,9 +29,19 @@
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 
-CMobSpellContainer::CMobSpellContainer(CMobEntity* PMob)
-: m_PMob(PMob)
+CMobSpellContainer::CMobSpellContainer(CBattleEntity* POwner)
+: m_POwner(POwner)
 {
+}
+
+auto CMobSpellContainer::mobMod(const xi::MobMod mod) const -> int32
+{
+    if (const auto* PMob = dynamic_cast<const CMobEntity*>(m_POwner))
+    {
+        return PMob->getMobMod(mod);
+    }
+
+    return 0;
 }
 
 void CMobSpellContainer::ClearSpells()
@@ -130,15 +140,15 @@ void CMobSpellContainer::RemoveSpell(SpellID spellId)
 auto CMobSpellContainer::GetAvailable(SpellID spellId) -> Maybe<SpellID>
 {
     auto* spell    = spell::GetSpell(spellId);
-    bool  enoughMP = spell->getMPCost() <= m_PMob->health.mp ||
+    bool  enoughMP = spell->getMPCost() <= m_POwner->health.mp ||
                      spell->getSkillType() == xi::SkillType::Ninjutsu ||
                      spell->getSkillType() == xi::SkillType::Singing ||
                      spell->getSkillType() == xi::SkillType::WindInstrument ||
                      spell->getSkillType() == xi::SkillType::StringInstrument ||
                      spell->getSkillType() == xi::SkillType::Geomancy ||
-                     m_PMob->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Manafont);
+                     m_POwner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Manafont);
 
-    bool isNotInRecast = !m_PMob->PRecastContainer->Has(xi::RecastType::Magic, static_cast<xi::Recast>(spellId));
+    bool isNotInRecast = !m_POwner->PRecastContainer->Has(xi::RecastType::Magic, static_cast<xi::Recast>(spellId));
 
     return (isNotInRecast && enoughMP) ? Maybe<SpellID>(spellId) : std::nullopt;
 }
@@ -153,13 +163,13 @@ auto CMobSpellContainer::GetBestAvailable(SPELLFAMILY family) -> Maybe<SpellID>
         {
             auto* spell         = spell::GetSpell(id);
             bool  sameFamily    = (family == SPELLFAMILY_NONE) ? true : spell->getSpellFamily() == family;
-            bool  enoughMP      = spell->getMPCost() <= m_PMob->health.mp ||
+            bool  enoughMP      = spell->getMPCost() <= m_POwner->health.mp ||
                                   spell->getSkillType() == xi::SkillType::Ninjutsu ||
                                   spell->getSkillType() == xi::SkillType::Singing ||
                                   spell->getSkillType() == xi::SkillType::WindInstrument ||
                                   spell->getSkillType() == xi::SkillType::StringInstrument ||
                                   spell->getSkillType() == xi::SkillType::Geomancy;
-            bool  isNotInRecast = !m_PMob->PRecastContainer->Has(xi::RecastType::Magic, static_cast<xi::Recast>(id));
+            bool  isNotInRecast = !m_POwner->PRecastContainer->Has(xi::RecastType::Magic, static_cast<xi::Recast>(id));
             if (sameFamily && enoughMP && isNotInRecast)
             {
                 matches.emplace_back(id);
@@ -720,7 +730,7 @@ auto CMobSpellContainer::HasMPSpells() const -> bool
 auto CMobSpellContainer::GetAggroSpell() -> Maybe<SpellID>
 {
     // high chance to return ga spell
-    if (HasGaSpells() && xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::GaChance))
+    if (HasGaSpells() && xirand::GetRandomNumber(100) < mobMod(xi::MobMod::GaChance))
     {
         return GetGaSpell();
     }
@@ -732,14 +742,14 @@ auto CMobSpellContainer::GetAggroSpell() -> Maybe<SpellID>
 auto CMobSpellContainer::GetSpell() -> Maybe<SpellID>
 {
     // prioritize curing if health low enough
-    if (HasHealSpells() && m_PMob->GetHPP() <= m_PMob->getMobMod(xi::MobMod::HpHealChance) &&
-        xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::HealChance))
+    if (HasHealSpells() && m_POwner->GetHPP() <= mobMod(xi::MobMod::HpHealChance) &&
+        xirand::GetRandomNumber(100) < mobMod(xi::MobMod::HealChance))
     {
         return GetHealSpell();
     }
 
     // almost always use na if I can
-    if (HasNaSpells() && xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::NaChance))
+    if (HasNaSpells() && xirand::GetRandomNumber(100) < mobMod(xi::MobMod::NaChance))
     {
         // will return -1 if no proper na spell exists
         auto naSpell = GetNaSpell();
@@ -750,18 +760,18 @@ auto CMobSpellContainer::GetSpell() -> Maybe<SpellID>
     }
 
     // try something really destructive
-    if (HasSevereSpells() && xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::SevereSpellChance))
+    if (HasSevereSpells() && xirand::GetRandomNumber(100) < mobMod(xi::MobMod::SevereSpellChance))
     {
         return GetSevereSpell();
     }
 
     // try ga spell
-    if (HasGaSpells() && xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::GaChance))
+    if (HasGaSpells() && xirand::GetRandomNumber(100) < mobMod(xi::MobMod::GaChance))
     {
         return GetGaSpell();
     }
 
-    if (HasBuffSpells() && xirand::GetRandomNumber(100) < m_PMob->getMobMod(xi::MobMod::BuffChance))
+    if (HasBuffSpells() && xirand::GetRandomNumber(100) < mobMod(xi::MobMod::BuffChance))
     {
         if (const auto maybeBuffSpell = GetBuffSpell(); maybeBuffSpell.has_value())
         {
@@ -886,7 +896,7 @@ auto CMobSpellContainer::GetBuffSpellsFor(CBattleEntity* PTarget) -> std::vector
             continue;
         }
 
-        if (PTarget != m_PMob && !PTarget->ValidTarget(m_PMob, PSpell->getValidTarget()))
+        if (PTarget != m_POwner && !PTarget->ValidTarget(m_POwner, PSpell->getValidTarget()))
         {
             continue;
         }
@@ -908,7 +918,7 @@ auto CMobSpellContainer::GetBuffSpell() -> Maybe<SpellID>
     for (const auto spellId : m_buffList)
     {
         const auto statusEffect = spell::GetSpell(spellId)->statusEffect();
-        if (!statusEffect.has_value() || !m_PMob->StatusEffectContainer->HasStatusEffect(statusEffect.value()))
+        if (!statusEffect.has_value() || !m_POwner->StatusEffectContainer->HasStatusEffect(statusEffect.value()))
         {
             missingBuffs.emplace_back(spellId);
         }
@@ -950,31 +960,31 @@ auto CMobSpellContainer::GetNaSpell() -> Maybe<SpellID>
     }
 
     // paralyna
-    if (HasNaSpell(SpellID::Paralyna) && m_PMob->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Paralysis))
+    if (HasNaSpell(SpellID::Paralyna) && m_POwner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Paralysis))
     {
         return SpellID::Paralyna;
     }
 
     // cursna
-    if (HasNaSpell(SpellID::Cursna) && m_PMob->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::CurseI, xi::StatusEffect::CurseIi }))
+    if (HasNaSpell(SpellID::Cursna) && m_POwner->StatusEffectContainer->HasStatusEffect({ xi::StatusEffect::CurseI, xi::StatusEffect::CurseIi }))
     {
         return SpellID::Cursna;
     }
 
     // erase
-    if (HasNaSpell(SpellID::Erase) && m_PMob->StatusEffectContainer->HasStatusEffectByFlag(xi::StatusEffectFlag::Erasable))
+    if (HasNaSpell(SpellID::Erase) && m_POwner->StatusEffectContainer->HasStatusEffectByFlag(xi::StatusEffectFlag::Erasable))
     {
         return SpellID::Erase;
     }
 
     // blindna
-    if (HasNaSpell(SpellID::Blindna) && m_PMob->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Blindness))
+    if (HasNaSpell(SpellID::Blindna) && m_POwner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Blindness))
     {
         return SpellID::Blindna;
     }
 
     // poisona
-    if (HasNaSpell(SpellID::Poisona) && m_PMob->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Poison))
+    if (HasNaSpell(SpellID::Poisona) && m_POwner->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Poison))
     {
         return SpellID::Poisona;
     }

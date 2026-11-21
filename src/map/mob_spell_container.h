@@ -31,7 +31,8 @@
 class CMobSpellContainer
 {
 public:
-    CMobSpellContainer(CMobEntity* PMob);
+    // The owner is a mob, a trust, or a player bot (which picks its spells through gambits too).
+    CMobSpellContainer(CBattleEntity* POwner);
 
     // These methods return a random spell
     auto GetAggroSpell() -> Maybe<SpellID>;                                // -ga spell, dia, bio, paralyze, silence, blind
@@ -84,6 +85,9 @@ public:
     std::vector<SpellID> m_severeList;
 
 private:
-    CMobEntity* m_PMob;
-    bool        m_hasSpells{};
+    // A mob's spell chance mod; owners that are not mobs have none (0).
+    auto mobMod(xi::MobMod mod) const -> int32;
+
+    CBattleEntity* m_POwner;
+    bool           m_hasSpells{};
 };
