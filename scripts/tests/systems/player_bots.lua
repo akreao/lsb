@@ -567,4 +567,29 @@ describe('Player bots', function()
         waitForAnswer()
         assert(tellsFrom('Tellbot') == 1, 'bot did not answer the tell')
     end)
+
+    it('gives up its client draw slot to a real player', function()
+        -- Fill all 32 slots the client draws other characters with bots, then bring a real player close.
+        local letters = 'abcdefghijklmnopqrstuvwxyzABCDEF'
+        for i = 1, 32 do
+            assert(spawnBot('Crowd' .. letters:sub(i, i)), 'crowd bot did not spawn')
+        end
+
+        -- Position updates (0x015) ask the zone to work out which characters this client draws.
+        local function moveAndWait()
+            for _ = 1, 5 do
+                player.actions:move(player:getXPos(), player:getYPos(), player:getZPos())
+                xi.test.world:skipTime(1)
+            end
+        end
+
+        moveAndWait()
+
+        local other = xi.test.world:spawnPlayer({ zone = zoneId })
+        other:setPos(player:getXPos() + 5, player:getYPos(), player:getZPos())
+        player.packets:clear()
+        moveAndWait()
+
+        assert(countIncoming(0x00D, other:getID()) > 0, 'the real player was not drawn while bots held every slot')
+    end)
 end)

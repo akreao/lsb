@@ -1233,6 +1233,25 @@ auto getSignificanceScore(CCharEntity* originChar, CCharEntity* targetChar) -> f
 
 } // namespace
 
+namespace
+{
+
+// The client draws a limited number of other characters. A player bot outside the viewer's party scores this much
+// lower, so it only takes a slot no real player wants (custom).
+constexpr float BotSpawnScorePenalty = 1000.0f;
+
+auto botSpawnPenalty(const CCharEntity* PViewer, const CCharEntity* POther) -> float
+{
+    if (!POther->isBot() || (POther->PParty != nullptr && POther->PParty == PViewer->PParty))
+    {
+        return 0.0f;
+    }
+
+    return BotSpawnScorePenalty;
+}
+
+} // namespace
+
 void CZoneEntities::SpawnPCs(CCharEntity* PChar)
 {
     TracyZoneScoped;
@@ -1289,7 +1308,7 @@ void CZoneEntities::SpawnPCs(CCharEntity* PChar)
         float significanceScore = getSignificanceScore(PChar, PCurrentChar);
         auto  bonusIter         = scoreBonus.find(PCurrentChar->id);
         auto  bonus             = bonusIter == scoreBonus.end() ? 0 : bonusIter->second;
-        float totalScore        = significanceScore + bonus - charDistance + CHARACTER_SYNC_DISTANCE_SWAP_THRESHOLD;
+        float totalScore        = significanceScore + bonus - charDistance + CHARACTER_SYNC_DISTANCE_SWAP_THRESHOLD - botSpawnPenalty(PChar, PCurrentChar);
 
         if (significanceScore < CHARACTER_SYNC_ALLI_SIGNIFICANCE)
         {
@@ -1336,7 +1355,7 @@ void CZoneEntities::SpawnPCs(CCharEntity* PChar)
             // and then subtracting the distance to make characters further away less important.
             auto  bonusIter  = scoreBonus.find(PCurrentChar->id);
             auto  bonus      = bonusIter == scoreBonus.end() ? 0 : bonusIter->second;
-            float totalScore = significanceScore + bonus - charDistance;
+            float totalScore = significanceScore + bonus - charDistance - botSpawnPenalty(PChar, PCurrentChar);
 
             if (PChar->SpawnPCList.size() < CHARACTER_SYNC_LIMIT_MAX ||
                 (!spawnedCharacters.empty() && totalScore > spawnedCharacters.top().first))
