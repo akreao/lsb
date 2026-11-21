@@ -1,6 +1,7 @@
 set(SOURCES
     auth_session.h
     auth_session.cpp
+    client_version.h
     connect_application.h
     connect_application.cpp
     connect_engine.h
