@@ -96,6 +96,12 @@ auto CJobPoints::GetJobPointType(JOBPOINT_TYPE jpType) -> JobPointType_t*
 
 void CJobPoints::RaiseJobPoint(JOBPOINT_TYPE jpType)
 {
+    // Bots live only in memory.
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     JobPoints_t*    job      = GetJobPointsByType(jpType);
     JobPointType_t* jobPoint = GetJobPointType(jpType);
 
@@ -155,6 +161,12 @@ auto CJobPoints::GetJobPointsByJob(uint8 jobID) const -> uint16
 
 void CJobPoints::SetJobPoints(int16 amount)
 {
+    // Bots live only in memory.
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     const auto currentJob = static_cast<uint8>(m_PChar->GetMJob());
     amount                = std::clamp<int16>(amount, 0, 500);
 
@@ -171,6 +183,12 @@ void CJobPoints::SetJobPoints(int16 amount)
 
 void CJobPoints::AddJobPoints(uint8 jobID, uint16 amount)
 {
+    // Bots live only in memory.
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     if (jobID == 0 || jobID > 22)
     {
         ShowDebug("Attempt to adjust job points for an invalid job for (%s).", m_PChar->getName());
@@ -191,6 +209,12 @@ void CJobPoints::AddJobPoints(uint8 jobID, uint16 amount)
 
 void CJobPoints::DelJobPoints(const uint8 jobID, int16 amount)
 {
+    // Bots live only in memory.
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     const int16 currentAmount = GetJobPointsByJob(jobID);
     amount                    = std::clamp<int16>(amount, -500, 500);
     if (currentAmount < amount)
@@ -256,6 +280,12 @@ auto CJobPoints::GetCapacityPoints() -> uint32
 
 void CJobPoints::SetCapacityPoints(uint16 amount)
 {
+    // Bots live only in memory.
+    if (m_PChar->isBot())
+    {
+        return;
+    }
+
     auto currentJob                        = static_cast<uint8>(m_PChar->GetMJob());
     amount                                 = std::clamp<int16>(amount, 0, 30000);
     m_jobPoints[currentJob].capacityPoints = amount;

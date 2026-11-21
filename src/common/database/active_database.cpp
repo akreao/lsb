@@ -23,10 +23,14 @@
 
 #include <common/database/libmariadb/libmariadb_database.h>
 
+#include <atomic>
+
 namespace
 {
 
 db::Database* gActiveDatabase = nullptr;
+
+std::atomic<db::StatementObserver> gStatementObserver = nullptr;
 
 } // namespace
 
@@ -45,4 +49,14 @@ auto db::getDatabase() -> Database&
 auto db::setDatabase(Database* database) -> void
 {
     gActiveDatabase = database;
+}
+
+auto db::setStatementObserver(const StatementObserver observer) -> void
+{
+    gStatementObserver.store(observer, std::memory_order_relaxed);
+}
+
+auto db::detail::statementObserver() -> StatementObserver
+{
+    return gStatementObserver.load(std::memory_order_relaxed);
 }

@@ -167,6 +167,7 @@
 #include "utils/attackutils.h"
 #include "utils/battleutils.h"
 #include "utils/blueutils.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/dboxutils.h"
 #include "utils/guildutils.h"
@@ -4189,6 +4190,12 @@ auto CLuaBaseEntity::getTeleportMenu(uint8 type) -> sol::table
 
 void CLuaBaseEntity::setHomePoint()
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
@@ -5849,6 +5856,12 @@ auto CLuaBaseEntity::getStorageItem(uint8 container, uint8 slotID, uint8 equipID
 
 auto CLuaBaseEntity::storeWithPorterMoogle(uint16 slipId, const sol::table& extraTable, const sol::table& storableItemIdsTable) -> uint8
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return 0;
+    }
+
     // an unknown slip leaves the gear alone and plays no cutscene
     constexpr uint8 storeFailed = 3;
 
@@ -5999,6 +6012,12 @@ auto CLuaBaseEntity::getRetrievableItemsForSlip(const uint16 slipId) const -> so
 
 void CLuaBaseEntity::retrieveItemFromSlip(uint16 slipId, uint16 itemId, uint16 extraId, uint8 extraData)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
@@ -6853,6 +6872,12 @@ auto CLuaBaseEntity::getGMHidden() -> bool
 
 void CLuaBaseEntity::setGMHidden(bool isHidden)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
@@ -7581,6 +7606,12 @@ auto CLuaBaseEntity::getLevelCap() -> uint8
 
 void CLuaBaseEntity::setLevelCap(uint8 cap)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
@@ -9316,6 +9347,12 @@ auto CLuaBaseEntity::getClaimedDeedMask() -> sol::table
 
 void CLuaBaseEntity::toggleReceivedDeedRewards()
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Attempt to toggle hide/show received rewards for Non-PC.");
@@ -9340,6 +9377,12 @@ void CLuaBaseEntity::toggleReceivedDeedRewards()
 
 void CLuaBaseEntity::setClaimedDeed(uint16 deedBitNum)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Attempt to set claimed deed mask for Non-PC.");
@@ -9365,6 +9408,12 @@ void CLuaBaseEntity::setClaimedDeed(uint16 deedBitNum)
 
 void CLuaBaseEntity::resetClaimedDeeds()
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Attempt to set claimed deed mask for Non-PC.");
@@ -9389,6 +9438,12 @@ void CLuaBaseEntity::resetClaimedDeeds()
  ************************************************************************/
 void CLuaBaseEntity::setUniqueEvent(uint16 uniqueEventId)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Attempt to set Unique Event mask for Non-PC.");
@@ -9413,6 +9468,12 @@ void CLuaBaseEntity::setUniqueEvent(uint16 uniqueEventId)
  ************************************************************************/
 void CLuaBaseEntity::delUniqueEvent(uint16 uniqueEventId)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Attempt to del from Unique Event mask for Non-PC.");
@@ -11305,6 +11366,12 @@ void CLuaBaseEntity::capSkill(uint8 skill)
 
 void CLuaBaseEntity::capAllSkills() const
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
     {
         for (uint8 i = static_cast<uint8>(xi::SkillType::HandToHand); i <= static_cast<uint8>(xi::SkillType::Handbell); ++i) // For xi::SkillType::HandToHand (1) - xi::SkillType::Handbell (45)
@@ -17033,6 +17100,12 @@ auto CLuaBaseEntity::getPetName() -> std::string
 
 void CLuaBaseEntity::setPetName(uint8 pType, uint16 value, const sol::object& arg2)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
@@ -17073,6 +17146,12 @@ namespace
 // An upsert, like setPetName, so a missing char_pet row cannot drop the write.
 void saveChocoboUserData(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     const auto rset = db::preparedStmt("INSERT INTO char_pet SET charid = ?, chocobo_user_data = ? "
                                        "ON DUPLICATE KEY UPDATE chocobo_user_data = VALUES(chocobo_user_data)",
                                        PChar->id,
@@ -20550,6 +20629,12 @@ auto CLuaBaseEntity::getChocoboRaisingInfo() -> sol::table
 
 auto CLuaBaseEntity::setChocoboRaisingInfo(const sol::table& table) -> bool
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return false;
+    }
+
     if (m_PBaseEntity == nullptr || m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("CLuaBaseEntity::setChocoboRaisingInfo() - Entity is null, or not PC.");
@@ -20665,6 +20750,12 @@ auto CLuaBaseEntity::setChocoboRaisingInfo(const sol::table& table) -> bool
 
 auto CLuaBaseEntity::deleteRaisedChocobo() -> bool
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return false;
+    }
+
     if (m_PBaseEntity == nullptr || m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("CLuaBaseEntity::deleteRaisedChocobo() - Entity is null, or not PC.");
@@ -20701,6 +20792,12 @@ void CLuaBaseEntity::clearTimerQueue()
 
 void CLuaBaseEntity::setMannequinPose(uint16 itemID, uint8 race, uint8 pose)
 {
+    // Bots live only in memory.
+    if (botutils::IsBot(m_PBaseEntity))
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     // Find the item in the player inventory and update the extra values

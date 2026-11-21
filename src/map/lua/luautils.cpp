@@ -71,6 +71,7 @@
 #include "persist_batch.h"
 #include "utils/battleutils.h"
 
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/instanceutils.h"
 #include "utils/itemutils.h"
@@ -322,6 +323,8 @@ void init(IPP mapIPP, bool isRunningInCI)
     lua.set_function("GetZone", &luautils::GetZone);
     lua.set_function("GetItemByID", &luautils::GetItemByID);
     lua.set_function("GetItemFlagsByID", &luautils::GetItemFlagsByID);
+    lua.set_function("GetBotDatabaseWrites", &botutils::GetBotDatabaseWrites);
+    lua.set_function("CanBotWear", &botutils::CanWear);
     lua.set_function("GetItemLevelRequirementsByID", &luautils::GetItemLevelRequirementsByID);
     lua.set_function("GetNPCByID", &luautils::GetNPCByID);
     lua.set_function("GetMobByID", &luautils::GetMobByID);
@@ -2514,6 +2517,12 @@ auto PlayerHasValidSession(uint32 playerId) -> bool
 
 void SendToJailOffline(uint32 playerId, int8 cellId, float posX, float posY, float posZ, uint8 rot)
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(playerId))
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     charutils::PersistCharVar(playerId, "inJail", cellId);
@@ -5523,6 +5532,12 @@ auto GetActiveWorldPass(const uint32 inviterId) -> sol::object
 
 auto IssueWorldPass(const uint32 inviterId, const uint32 expiry) -> uint32
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(inviterId))
+    {
+        return 0;
+    }
+
     const auto code = xirand::GetRandomNumber<uint32>(1, std::numeric_limits<uint32>::max());
     const auto rset = db::preparedStmt("INSERT IGNORE INTO char_world_passes (code, inviter, expiry) VALUES (?, ?, ?)", code, inviterId, expiry);
     if (!rset || !rset->rowsAffected())
@@ -5551,6 +5566,12 @@ auto GetWorldPassInvite(const uint32 inviterId, const uint32 inviteeId) -> sol::
 
 void SetWorldPassClaims(const uint32 inviteeId, const uint8 inviteeClaims, const uint8 inviterClaims)
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(inviteeId))
+    {
+        return;
+    }
+
     db::preparedStmt("UPDATE char_world_passes SET invitee_claims = ?, inviter_claims = ? WHERE invitee = ?", inviteeClaims, inviterClaims, inviteeId);
 }
 

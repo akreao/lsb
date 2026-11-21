@@ -63,6 +63,7 @@
 #include "lua/lua_base_entity.h"
 #include "packets/s2c/0x05f_music.h"
 #include "utils/battleutils.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/fishingutils.h"
 #include "utils/moduleutils.h"
@@ -273,6 +274,10 @@ auto CZoneEntities::InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*
     PBot->targid   = targid;
     PBot->loc.zone = m_zone;
 
+    // A bot keeps its own pool, so loot from its kills never reaches a real player's pool by mistake.
+    PBot->PTreasurePool = new CTreasurePool(TreasurePoolType::Solo);
+    PBot->PTreasurePool->addMember(PBot.get());
+
     auto* PRaw = PBot.get();
     m_botList.emplace(targid, std::move(PBot));
 
@@ -305,6 +310,13 @@ void CZoneEntities::DespawnBot(const uint16 targid)
     }
 
     spatialGrid_.remove(PBot);
+    botutils::ReleaseName(PBot->getName());
+
+    if (PBot->PTreasurePool != nullptr)
+    {
+        PBot->PTreasurePool->delMember(PBot);
+    }
+
     m_botList.erase(it);
 }
 

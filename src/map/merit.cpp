@@ -26,6 +26,7 @@
 #include "data/datasets/weapon_skills/dataset.h"
 #include "packets/s2c/0x0aa_magic_data.h"
 #include "packets/s2c/0x0ac_command_data.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/dataset_loader.h"
 
@@ -136,6 +137,12 @@ void CMeritPoints::LoadMeritPoints(const uint32 charid)
 
 void CMeritPoints::SaveMeritPoints(const uint32 charid)
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(charid))
+    {
+        return;
+    }
+
     for (const auto& merit : merits)
     {
         if (merit.count > 0)

@@ -32,6 +32,22 @@ end
 function GetItemFlagsByID(itemId)
 end
 
+-- Database writes seen with a player bot id since the map started (always 0 unless something is broken).
+---@nodiscard
+---@return integer
+function GetBotDatabaseWrites()
+end
+
+-- True when a player bot of this job and level can wear the item in that equip slot.
+---@nodiscard
+---@param itemId xi.item
+---@param job xi.job
+---@param level integer
+---@param slot xi.slot
+---@return boolean
+function CanBotWear(itemId, job, level, slot)
+end
+
 ---@nodiscard
 ---@param itemId xi.item
 ---@return number

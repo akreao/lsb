@@ -217,6 +217,12 @@ void LoadAutomaton(CCharEntity* PChar)
 
 void SaveAttachments(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     db::preparedStmt("UPDATE char_pet SET "
                      "unlocked_attachments = ? "
                      "WHERE charid = ? LIMIT 1",
@@ -226,6 +232,12 @@ void SaveAttachments(CCharEntity* PChar)
 
 void SaveAutomaton(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     if (PChar->GetMJob() == xi::Job::PUP || PChar->GetSJob() == xi::Job::PUP)
     {
         db::preparedStmt("UPDATE char_pet SET "

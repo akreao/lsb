@@ -2427,13 +2427,16 @@ auto CCharEntity::OnItemFinish(CItemState& state, action_t& action) -> bool
         }
         PItem->setLastUseTime(timer::now());
 
-        db::preparedStmt("UPDATE char_inventory "
-                         "SET extra = ? "
-                         "WHERE charid = ? AND location = ? AND slot = ? LIMIT 1",
-                         PItem->m_extra,
-                         this->id,
-                         PItem->getLocationID(),
-                         PItem->getSlotID());
+        if (!isBot_)
+        {
+            db::preparedStmt("UPDATE char_inventory "
+                             "SET extra = ? "
+                             "WHERE charid = ? AND location = ? AND slot = ? LIMIT 1",
+                             PItem->m_extra,
+                             this->id,
+                             PItem->getLocationID(),
+                             PItem->getSlotID());
+        }
 
         if (PItem->getCurrentCharges() != 0)
         {
@@ -3374,7 +3377,10 @@ void CCharEntity::clearCharVarsWithPrefix(const std::string& prefix)
         ++iter;
     }
 
-    db::preparedStmt("DELETE FROM char_vars WHERE charid = ? AND varname LIKE ?", this->id, fmt::format("{}%", prefix));
+    if (!isBot_)
+    {
+        db::preparedStmt("DELETE FROM char_vars WHERE charid = ? AND varname LIKE ?", this->id, fmt::format("{}%", prefix));
+    }
 }
 
 auto CCharEntity::startSynth(xi::SkillType synthSkill) -> bool

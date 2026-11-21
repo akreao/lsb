@@ -340,6 +340,12 @@ auto GetTotalBlueMagicPoints(CCharEntity* PChar) -> uint8
 
 void SaveSetSpells(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     if (PChar->GetMJob() == xi::Job::BLU || PChar->GetSJob() == xi::Job::BLU)
     {
         if (!db::preparedStmt("UPDATE chars SET set_blue_spells = ? WHERE charid = ? LIMIT 1",

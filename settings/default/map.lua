@@ -308,4 +308,7 @@ xi.settings.map =
     -- Player bots: memory-only player shells that are never saved to the database (custom, not retail).
     -- They only exist in a zone that has at least one real player. Off by default.
     PLAYER_BOTS_ENABLED = false,
+
+    -- Highest level a bot gets (zones pick lower levels from their monsters).
+    PLAYER_BOTS_MAX_LEVEL = 75,
 }

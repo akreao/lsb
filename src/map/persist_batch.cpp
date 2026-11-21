@@ -52,6 +52,12 @@ void writeRows(const PersistBatch& batch)
 
 void PersistBatch::add(CCharEntity* PChar, const IsLogout logout)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     const auto pending = PChar->persist();
     PChar->clearPersist(pending);
 
@@ -136,6 +142,12 @@ void PersistBatch::write()
 void persist::flush(CCharEntity* PChar, const IsLogout logout)
 {
     TracyZoneScoped;
+
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
 
     PChar->StatusEffectContainer->DropEffectsForTransition(logout);
 

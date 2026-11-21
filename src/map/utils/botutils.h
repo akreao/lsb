@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+class CBaseEntity;
 class CCharEntity;
 class CZone;
 
@@ -50,6 +51,30 @@ struct BotSpec
     position_t                            pos{};
     std::vector<std::pair<uint8, uint16>> gear; // equip slot, item id
 };
+
+// Bot ids sit above every real character id and below the mob id range (0x01000000).
+constexpr uint32 BotIdFirst = 0x00F00000;
+constexpr uint32 BotIdLast  = 0x00FFFFFF;
+
+// True for an id in the reserved bot range. The range is checked against the chars table before any
+// bot spawns, so a real character never has one.
+auto IsBotId(uint32 id) -> bool;
+
+// True when the entity is a player bot.
+auto IsBot(const CBaseEntity* PEntity) -> bool;
+
+// Database writes seen with a bot id as a parameter since the map started. Bots must never write, so this
+// stays 0; each one is also logged as an error.
+auto GetBotDatabaseWrites() -> uint32;
+
+// True when a bot of this job and level can wear the item in that equip slot (checks the gear file).
+auto CanWear(uint16 itemId, uint8 job, uint8 level, uint8 equipSlot) -> bool;
+
+// True while a live bot has this name, or a real character has it in the database.
+auto IsNameTaken(const std::string& name) -> bool;
+
+// Frees a despawned bot's name.
+void ReleaseName(const std::string& name);
 
 // Builds a bot and puts it in the zone. Returns nullptr when bots are off or the zone cannot take one.
 auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*;

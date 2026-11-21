@@ -164,6 +164,18 @@ consteval auto rowWidth() -> std::size_t
 // default backend.
 auto setDatabase(Database* database) -> void;
 
+// Called with every statement and its parameters just before it runs (debug checks and tests).
+// Pass nullptr to turn it off.
+using StatementObserver = void (*)(Query query, const std::vector<BoundValue>& params);
+auto setStatementObserver(StatementObserver observer) -> void;
+
+namespace detail
+{
+
+auto statementObserver() -> StatementObserver;
+
+} // namespace detail
+
 // @brief Execute a prepared statement with the given query string and arguments.
 // @param query The query string to execute.
 // @param args The arguments to bind to the prepared statement.
@@ -225,6 +237,11 @@ auto detail::runPrepared(const Query query, Args&&... args) -> std::unique_ptr<R
     TracyZoneString(query.view());
 
     const auto params = lowerBoundValues(std::forward<Args>(args)...);
+    if (const auto observer = statementObserver())
+    {
+        observer(query, params);
+    }
+
     return getDatabase().execute(query, params);
 }
 
@@ -271,6 +288,11 @@ void executeBulk(const detail::CheckedQuery<detail::rowWidth<ProjectFn, T>()> qu
                 (detail::lowerBoundValue(params, values), ...);
             },
             project(row));
+    }
+
+    if (const auto observer = detail::statementObserver())
+    {
+        observer(query.query(), params);
     }
 
     if (!getDatabase().executeBulk(query.query(), params))

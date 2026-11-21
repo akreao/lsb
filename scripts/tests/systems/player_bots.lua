@@ -147,6 +147,92 @@ describe('Player bots', function()
         assert(GetZone(zoneId):getBotCount() == 0, 'bot stayed in an empty zone')
     end)
 
+    it('writes nothing to the database', function()
+        local writesBefore = GetBotDatabaseWrites()
+        local bot = assert(spawnBot('Savebot'))
+
+        -- The calls quest, mission and mob scripts make on a player.
+        bot:setCharVar('[Bot]Test', 5)
+        bot:incrementCharVar('[Bot]Test', 1)
+        bot:addTitle(xi.title.NEW_ADVENTURER)
+        bot:addKeyItem(xi.keyItem.MAP_OF_THE_SAN_DORIA_AREA)
+        bot:addQuest(xi.questLog.SANDORIA, xi.quest.id.sandoria.A_SENTRYS_PERIL)
+        bot:completeQuest(xi.questLog.SANDORIA, xi.quest.id.sandoria.A_SENTRYS_PERIL)
+        bot:addFame(xi.fameArea.SANDORIA, 50)
+        bot:addTeleport(xi.teleport.type.OUTPOST_SANDORIA, 1)
+        bot:addSpell(xi.magic.spell.CURE)
+        bot:addCurrency('spark_of_eminence', 100)
+        bot:addGil(1000)
+        bot:addItem(xi.item.PEBBLE)
+        bot:addExp(5000)
+        bot:addCapacityPoints(100)
+        bot:setHomePoint()
+        bot:addStatusEffect(xi.effect.PROTECT, { power = 10, duration = 60, origin = bot })
+
+        -- A kill runs the mob's death scripts and the exp, sparks and records code with the bot as the killer.
+        local mob = assert(player.entities:get(zones[zoneId].mob.FUNGUS_BEETLE))
+        if not mob:isSpawned() then
+            SpawnMob(mob:getID())
+        end
+
+        mob:updateClaim(bot)
+        mob:takeDamage(2000000000, bot)
+        xi.test.world:tickEntity(mob)
+        for _ = 1, 5 do
+            xi.test.world:skipTime(5)
+            xi.test.world:tickEntity(mob)
+        end
+
+        assert(not mob:isAlive(), 'the bot did not kill the mob')
+
+        -- Leaving the zone runs the char destructor (history, death time).
+        GetZone(zoneId):despawnBots()
+
+        local writes = GetBotDatabaseWrites() - writesBefore
+        assert(writes == 0, string.format('bot wrote to the database %d time(s)', writes))
+    end)
+
+    it('has a gear file that every job can wear', function()
+        local problems = xi.bots.checkGear()
+        assert(#problems == 0, 'gear file problems: ' .. table.concat(problems, '; '))
+    end)
+
+    it('builds a bot that fits the zone, with its gear, skills and spells', function()
+        local zone = assert(player:getZone())
+        local low, high = xi.bots.zoneLevelBand(zone)
+        assert(low and high, 'West Ronfaure has no mob level band')
+
+        for _ = 1, 10 do
+            local bot = assert(xi.bots.spawn(zone, { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }))
+            local level = bot:getMainLvl()
+            assert(level > low and level <= high + 4, string.format('level %d outside the zone band %d-%d', level, low, high))
+
+            for slot, itemId in pairs(xi.bots.gearFor(bot:getMainJob(), level)) do
+                assert(bot:getEquipID(slot) == itemId, string.format('%s is missing item %d in slot %d', bot:getName(), itemId, slot))
+            end
+        end
+
+        local whm = assert(xi.bots.spawn(zone, { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() },
+            { name = 'Healbot', job = xi.job.WHM, level = 30 }))
+
+        assert(whm:getSubJob() ~= xi.job.NONE and whm:getSubLvl() == 15, 'level 30 bot has no level 15 support job')
+        assert(whm:hasSpell(xi.magic.spell.CURE_II), 'level 30 WHM bot cannot cast Cure II')
+        assert(not whm:hasSpell(xi.magic.spell.CURE_IV), 'level 30 WHM bot knows Cure IV (level 48)')
+        assert(whm:getSkillLevel(xi.skill.CLUB) > 0, 'WHM bot has no club skill')
+        assert(whm:getSkillLevel(xi.skill.HEALING_MAGIC) > 0, 'WHM bot has no healing skill')
+
+        -- A second weapon needs Dual Wield, which the bot must have before its gear goes on.
+        local nin = assert(xi.bots.spawn(zone, { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() },
+            { name = 'Shadowbot', job = xi.job.NIN, level = 30 }))
+        local ninGear = xi.bots.gearFor(xi.job.NIN, 30)
+        assert(nin:getEquipID(xi.slot.SUB) == ninGear[xi.slot.SUB], 'NIN bot is missing its off-hand katana')
+    end)
+
+    it('never reuses a live name', function()
+        assert(spawnBot('Twinbot'))
+        assert(spawnBot('Twinbot') == nil, 'a second bot took a live name')
+    end)
+
     it('can be cleared', function()
         local bot = assert(spawnBot('Clearbot'))
         local botId = bot:getID()

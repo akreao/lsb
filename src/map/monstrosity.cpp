@@ -55,6 +55,7 @@
 #include "merit.h"
 #include "notoriety_container.h"
 #include "utils/battleutils.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/mobutils.h"
 
@@ -839,6 +840,12 @@ void monstrosity::WriteMonstrosityData(CCharEntity* PChar)
 
 void monstrosity::SaveMonstrosityData(const uint32 charId, const MonstrosityData_t& data)
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(charId))
+    {
+        return;
+    }
+
     constexpr auto query = db::Query(
         "INSERT INTO char_monstrosity SET "
         "charid = ?, "

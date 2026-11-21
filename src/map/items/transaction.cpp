@@ -51,6 +51,12 @@ namespace
 
 auto applyItemUpdate(CCharEntity* PChar, uint8 LocationID, uint8 slotID, int32 quantity, const Transaction* owner) -> ItemMutation
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return {};
+    }
+
     CItem* PItem = PChar->getStorage(LocationID)->GetItem(slotID);
 
     if (PItem == nullptr)
@@ -160,6 +166,12 @@ auto applyItemUpdate(CCharEntity* PChar, uint8 LocationID, uint8 slotID, int32 q
 
 auto applyAddItem(CCharEntity* PChar, uint8 LocationID, std::unique_ptr<CItem> PItem, const Silence silence, const Transaction* owner, int32& applied) -> uint8
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return ERROR_SLOTID;
+    }
+
     applied = 0;
 
     if (PItem->isType(ITEM_CURRENCY))
@@ -226,6 +238,12 @@ auto applyAddItem(CCharEntity* PChar, uint8 LocationID, std::unique_ptr<CItem> P
 // Undos are recorded against a slot, so a stack that returned to a different one would strand every undo still pointing at the original
 auto restoreItem(CCharEntity* PChar, uint8 LocationID, uint8 SlotID, std::unique_ptr<CItem> PItem, const Transaction* owner) -> uint8
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return ERROR_SLOTID;
+    }
+
     auto* PStorage = PChar->getStorage(LocationID);
 
     if (PStorage == nullptr || PStorage->GetItem(SlotID) != nullptr)

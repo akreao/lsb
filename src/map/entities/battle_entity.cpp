@@ -1809,7 +1809,8 @@ void CBattleEntity::SetMLevel(uint8 mlvl)
 
     m_mlvl = (mlvl == 0 ? 1 : mlvl);
 
-    if (dynamic_cast<const CCharEntity*>(this) != nullptr)
+    // Bots live only in memory.
+    if (const auto* PChar = dynamic_cast<const CCharEntity*>(this); PChar != nullptr && !PChar->isBot())
     {
         db::preparedStmt("UPDATE char_stats SET mlvl = ? WHERE charid = ? LIMIT 1", m_mlvl, this->id);
     }
@@ -1855,7 +1856,8 @@ void CBattleEntity::SetSLevel(uint8 slvl)
         }
     }
 
-    if (dynamic_cast<const CCharEntity*>(this) != nullptr)
+    // Bots live only in memory.
+    if (const auto* PChar = dynamic_cast<const CCharEntity*>(this); PChar != nullptr && !PChar->isBot())
     {
         db::preparedStmt("UPDATE char_stats SET slvl = ? WHERE charid = ? LIMIT 1", m_slvl, this->id);
     }

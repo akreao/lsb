@@ -110,6 +110,7 @@
 
 #include "battleutils.h"
 #include "blueutils.h"
+#include "botutils.h"
 #include "char_points_queries.h"
 #include "charutils.h"
 #include "enums/item_lockflg.h"
@@ -1798,6 +1799,12 @@ void UpdateSubJob(CCharEntity* PChar)
 
 auto MoveItem(CCharEntity* PChar, uint8 LocationID, uint8 SlotID, uint8 NewSlotID) -> uint8
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return ERROR_SLOTID;
+    }
+
     CItemContainer* PItemContainer = PChar->getStorage(LocationID);
 
     if (PItemContainer->GetFreeSlotsCount() == 0)
@@ -2697,6 +2704,12 @@ void UpdateRemovedSlotsLook(CCharEntity* PChar)
 
 void AddItemToRecycleBin(CCharEntity* PChar, uint32 container, uint8 slotID, uint8 quantity)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     auto* RecycleBin     = PChar->getStorage(LOC_RECYCLEBIN);
     auto* OtherContainer = PChar->getStorage(container);
 
@@ -2803,6 +2816,12 @@ void AddItemToRecycleBin(CCharEntity* PChar, uint32 container, uint8 slotID, uin
 
 void EmptyRecycleBin(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     CItemContainer* recycleBin = PChar->getStorage(LOC_RECYCLEBIN);
@@ -2819,6 +2838,12 @@ void EmptyRecycleBin(CCharEntity* PChar)
 
 void SaveJobChangeGear(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     if (PChar == nullptr)
     {
         return;
@@ -5335,6 +5360,12 @@ void SetLevelRestriction(CCharEntity* PChar, uint8 lvl)
 
 void SaveCharPosition(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     if (PChar->status == xi::Status::Disappear)
@@ -5402,6 +5433,12 @@ void SaveCharPositions(const std::vector<CharPosition>& rows)
 
 void SaveQuestsList(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5415,6 +5452,12 @@ void SaveQuestsList(CCharEntity* PChar)
 
 void SaveFame(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_profile "
@@ -5459,6 +5502,12 @@ void SaveFame(CCharEntity* PChar)
 
 void SaveMissionsList(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5491,6 +5540,12 @@ void SaveMissionsList(CCharEntity* PChar)
 
 void SaveEminenceData(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     if (!settings::get<bool>("main.ENABLE_ROE"))
@@ -5511,6 +5566,12 @@ void SaveEminenceData(CCharEntity* PChar)
 
 void SaveCharInventoryCapacity(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_storage "
@@ -5555,6 +5616,12 @@ void SaveCharInventoryCapacity(CCharEntity* PChar)
 
 void SaveKeyItems(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars SET keyitems = ? WHERE charid = ? LIMIT 1",
@@ -5564,6 +5631,12 @@ void SaveKeyItems(CCharEntity* PChar)
 
 void SaveSpell(CCharEntity* PChar, uint16 spellID)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("INSERT IGNORE INTO char_spells "
@@ -5574,6 +5647,12 @@ void SaveSpell(CCharEntity* PChar, uint16 spellID)
 
 void DeleteSpell(CCharEntity* PChar, uint16 spellID)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("DELETE FROM char_spells "
@@ -5584,6 +5663,12 @@ void DeleteSpell(CCharEntity* PChar, uint16 spellID)
 
 void SaveLearnedAbilities(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars SET "
@@ -5598,6 +5683,12 @@ void SaveLearnedAbilities(CCharEntity* PChar)
 
 void SaveTitles(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5614,6 +5705,12 @@ void SaveTitles(CCharEntity* PChar)
 
 void SaveZonesVisited(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5626,6 +5723,12 @@ void SaveZonesVisited(CCharEntity* PChar)
 
 void SavePrevZoneLineID(CCharEntity* PChar, uint32 ZoneLineID)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5764,6 +5867,12 @@ void SaveCharAppearances(const std::vector<CharAppearance>& rows)
 
 void SaveCharStats(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_stats "
@@ -5810,6 +5919,12 @@ void SaveCharStats(CCharEntity* PChar)
 
 void SaveCharGMLevel(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5829,6 +5944,12 @@ void SaveCharGMLevel(CCharEntity* PChar)
 
 void SavePlayerSettings(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     uint32_t playerSettings = {};
@@ -5845,6 +5966,12 @@ void SavePlayerSettings(CCharEntity* PChar)
 
 void SaveJobMasterDisplay(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5858,6 +5985,12 @@ void SaveJobMasterDisplay(CCharEntity* PChar)
 
 void SaveChatFilterFlags(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     const auto filters1 = std::bit_cast<uint32_t>(PChar->playerConfig.MessageFilter);
@@ -5882,6 +6015,12 @@ void SaveChatFilterFlags(CCharEntity* PChar)
 
 void SaveLanguages(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars SET languages = ? WHERE charid = ?", PChar->search.language, PChar->id);
@@ -5895,6 +6034,12 @@ void SaveLanguages(CCharEntity* PChar)
 
 void SaveCharNation(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5912,6 +6057,12 @@ void SaveCharNation(CCharEntity* PChar)
 
 void SaveCampaignAllegiance(const CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5929,6 +6080,12 @@ void SaveCampaignAllegiance(const CCharEntity* PChar)
 
 void SaveCharMoghancement(const CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -5946,6 +6103,12 @@ void SaveCharMoghancement(const CCharEntity* PChar)
 
 void SaveCharJob(const CCharEntity* PChar, const xi::Job job)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     if (job == xi::Job::NONE || static_cast<uint8>(job) >= MAX_JOBTYPE)
@@ -6019,6 +6182,12 @@ void SaveCharJob(const CCharEntity* PChar, const xi::Job job)
 
 void SaveCharExp(const CCharEntity* PChar, const xi::Job job)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     if (job == xi::Job::NONE || static_cast<uint8>(job) >= MAX_JOBTYPE)
@@ -6092,6 +6261,12 @@ void SaveCharExp(const CCharEntity* PChar, const xi::Job job)
 
 void SaveCharSkills(const CCharEntity* PChar, const uint8 skillID)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     if (skillID >= MAX_SKILLTYPE)
@@ -6119,6 +6294,12 @@ void SaveCharSkills(const CCharEntity* PChar, const uint8 skillID)
 
 void SaveTeleport(CCharEntity* PChar, TELEPORT_TYPE type)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     switch (type)
@@ -6224,6 +6405,12 @@ void SaveTeleport(CCharEntity* PChar, TELEPORT_TYPE type)
 
 void SaveMazeUnlocks(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_unlocks SET maze_vouchers = ?, maze_runes = ? WHERE charid = ? LIMIT 1",
@@ -6236,6 +6423,12 @@ void SaveMazeUnlocks(CCharEntity* PChar)
 
 void SaveLastLogout(const CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE chars "
@@ -6296,6 +6489,12 @@ auto getQuestStatus(CCharEntity* PChar, uint8 log, uint8 quest) -> uint8
 
 void SaveDeathTime(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     uint32 secondsSinceDeath = static_cast<uint32>(timer::count_seconds(PChar->GetTimeSinceDeath()));
@@ -6304,6 +6503,12 @@ void SaveDeathTime(CCharEntity* PChar)
 
 void SavePlayTime(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     const timer::duration playDuration = PChar->GetPlayTime();
@@ -6527,6 +6732,12 @@ void ApplyAllEquipMods(CCharEntity* PChar)
 
 void ClearTempItems(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     CItemContainer* Temp = PChar->getStorage(LOC_TEMPITEMS);
@@ -6750,7 +6961,10 @@ void AddPoints(CCharEntity* PChar, const char* type, int32 amount, int32 max)
 
         AddPoints(PChar, "current_accolades", amount, std::numeric_limits<int32>::max()); // Do not cap current_accolades
 
-        db::preparedStmt("UPDATE unity_system SET points_current = points_current + ? WHERE leader = ?", evalPoints, PChar->profile.unity_leader);
+        if (!PChar->isBot())
+        {
+            db::preparedStmt("UPDATE unity_system SET points_current = points_current + ? WHERE leader = ?", evalPoints, PChar->profile.unity_leader);
+        }
 
         roeutils::UpdateUnityTrust(PChar, true);
 
@@ -6782,7 +6996,7 @@ void SetPoints(CCharEntity* PChar, const char* type, int32 amount)
         ShowWarningFmt("Clamped {} for {} from {} to {}", type, PChar->getName(), amount, value);
     }
 
-    if (!db::preparedStmt(db::selected(queries->update), value, PChar->id))
+    if (!PChar->isBot() && !db::preparedStmt(db::selected(queries->update), value, PChar->id))
     {
         ShowErrorFmt("Failed to save {} for {}", type, PChar->getName());
     }
@@ -6855,7 +7069,10 @@ void SetUnityLeader(CCharEntity* PChar, uint8 leaderID)
     }
     unitychat::AddOnlineMember(PChar, PChar->profile.unity_leader);
 
-    db::preparedStmt("UPDATE char_profile SET unity_leader = ? WHERE charid = ?", PChar->profile.unity_leader, PChar->id);
+    if (!PChar->isBot())
+    {
+        db::preparedStmt("UPDATE char_profile SET unity_leader = ? WHERE charid = ?", PChar->profile.unity_leader, PChar->id);
+    }
 }
 
 auto GetConquestPointsName(CCharEntity* PChar) -> std::string
@@ -6876,6 +7093,12 @@ auto GetConquestPointsName(CCharEntity* PChar) -> std::string
 
 auto SendToZone(CCharEntity* PChar, const xi::ZoneId zoneId) -> bool
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return false;
+    }
+
     TracyZoneScoped;
 
     if (PChar->PSession->blowfish.status == BLOWFISH_PENDING_ZONE)
@@ -7121,6 +7344,12 @@ void ClearCharVarFromAll(const std::string& varName, bool localOnly)
 
 void IncrementCharVar(uint32 charId, const std::string& var, int32 value)
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(charId))
+    {
+        return;
+    }
+
     db::preparedStmt("INSERT INTO char_vars SET charid = ?, varname = ?, value = ? ON DUPLICATE KEY UPDATE value = value + ?", charId, var, value, value);
 }
 
@@ -7160,6 +7389,12 @@ auto FetchCharVar(uint32 charId, const std::string& varName) -> std::pair<int32,
 
 void PersistCharVar(uint32 charId, const std::string& var, int32 value, uint32 expiry /* = 0 */)
 {
+    // Bots live only in memory.
+    if (botutils::IsBotId(charId))
+    {
+        return;
+    }
+
     if (value == 0)
     {
         db::preparedStmt("DELETE FROM char_vars WHERE charid = ? AND varname = ? LIMIT 1", charId, var);
@@ -7275,6 +7510,12 @@ auto getTraverserEpoch(CCharEntity* PChar) -> earth_time::time_point
 // TODO: Perhaps allow for optional argument to support GM Commands
 void setTraverserEpoch(CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_unlocks SET traverser_start = CURRENT_TIMESTAMP() WHERE charid = ?", PChar->id);
@@ -7295,6 +7536,12 @@ auto getClaimedTraverserStones(CCharEntity* PChar) -> uint32
 
 void addClaimedTraverserStones(CCharEntity* PChar, uint16 numStones)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_unlocks SET traverser_claimed = traverser_claimed + ? WHERE charid = ?", numStones, PChar->id);
@@ -7302,6 +7549,12 @@ void addClaimedTraverserStones(CCharEntity* PChar, uint16 numStones)
 
 void setClaimedTraverserStones(CCharEntity* PChar, uint16 stoneTotal)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     db::preparedStmt("UPDATE char_unlocks SET traverser_claimed = ? WHERE charid = ?", stoneTotal, PChar->id);
@@ -7382,6 +7635,12 @@ void ReadHistory(CCharEntity* PChar)
 
 void WriteHistory(const CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     TracyZoneScoped;
 
     if (PChar == nullptr)
@@ -7732,6 +7991,12 @@ void removeCharFromZone(CCharEntity* PChar)
 
 void updateSession(MapSession* PSession, CCharEntity* PChar, CZone* currentZone)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     db::preparedStmt("UPDATE accounts_sessions SET targid = ?, server_addr = ?, client_addr = ?, client_port = ?, last_zoneout_time = 0 WHERE charid = ? LIMIT 1",
                      PChar->targid,
                      currentZone->GetIP(),
@@ -7841,6 +8106,12 @@ void updateMannequins(CCharEntity* PChar)
 
 auto raceChange(CCharEntity* PChar, CharRace newRace, CharFace newFace, CharSize newSize) -> bool
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return false;
+    }
+
     if (!PChar)
     {
         return false;

@@ -63,6 +63,12 @@ void Load(CCharEntity* PChar)
 
 void SaveCelestite(const CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     db::preparedStmt("INSERT INTO char_trust_ascension (charid, celestite) VALUES (?, ?) "
                      "ON DUPLICATE KEY UPDATE celestite = VALUES(celestite)",
                      PChar->id,
@@ -160,6 +166,12 @@ auto SetCelestiteSet(CCharEntity* PChar, const uint8 set, const uint8 (&slots)[C
 
 void SaveAlterEgo(const CCharEntity* PChar)
 {
+    // Bots live only in memory.
+    if (PChar->isBot())
+    {
+        return;
+    }
+
     db::preparedStmt("INSERT INTO char_trust_ascension (charid, alter_ego) VALUES (?, ?) "
                      "ON DUPLICATE KEY UPDATE alter_ego = VALUES(alter_ego)",
                      PChar->id,
