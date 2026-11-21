@@ -333,6 +333,17 @@ auto CLuaZone::getBotCount() -> uint32
     return static_cast<uint32>(m_pLuaZone->GetBotCount());
 }
 
+auto CLuaZone::getBotEntrances() -> sol::table
+{
+    auto table = lua.create_table();
+    for (const auto& pos : botutils::GetEntrances(m_pLuaZone))
+    {
+        table.add(lua.create_table_with("x", pos.x, "y", pos.y, "z", pos.z, "rot", pos.rotation));
+    }
+
+    return table;
+}
+
 auto CLuaZone::getBots() -> sol::table
 {
     auto table = lua.create_table();
@@ -487,6 +498,7 @@ void CLuaZone::Register()
     SOL_REGISTER("despawnBots", CLuaZone::despawnBots);
     SOL_REGISTER("getBotCount", CLuaZone::getBotCount);
     SOL_REGISTER("getBots", CLuaZone::getBots);
+    SOL_REGISTER("getBotEntrances", CLuaZone::getBotEntrances);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

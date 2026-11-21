@@ -188,6 +188,12 @@ end
 function CZone:getBots()
 end
 
+-- Where players arrive in the zone (landing points of the zone lines leading in), for arriving bots.
+---@nodiscard
+---@return { x: number, y: number, z: number, rot: integer }[]
+function CZone:getBotEntrances()
+end
+
 ---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()

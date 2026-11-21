@@ -216,6 +216,8 @@ auto CBotController::CombatTick(const timer::time_point tick) -> Task<void>
     auto* PTarget = PBot->GetBattleTarget();
     if (PTarget == nullptr || PTarget->isDead())
     {
+        // Hunt on from where the last fight ended, as players drift across a zone.
+        m_home = PBot->loc.p;
         Disengage();
         m_hunting = false;
         m_prey    = {};

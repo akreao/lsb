@@ -86,6 +86,9 @@ auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&;
 // (map.PLAYER_BOTS_MAX_HUNTERS, one less for each real player fighting there).
 auto MayHunt(CCharEntity* PBot) -> bool;
 
+// Asks the Lua bot manager (xi.bots.populate) whether this zone should gain a bot now.
+void Populate(CZone* PZone);
+
 // Builds a bot and puts it in the zone. Returns nullptr when bots are off or the zone cannot take one.
 auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*;
 

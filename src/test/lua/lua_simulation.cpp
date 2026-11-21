@@ -490,7 +490,7 @@ void CLuaSimulation::tick(const Maybe<TickType> boundary) const
             const auto timePoint = timer::now() + 1ms;
             for (auto* PZone : g_PZoneList | std::views::values)
             {
-                if (!PZone->GetZoneEntities()->CharListEmpty()) // Only tick zones with players
+                if (!PZone->GetZoneEntities()->CharListEmpty() || PZone->GetBotCount() > 0) // Only tick zones with players (or bots, which leave on a timer)
                 {
                     // We cannot co_await within a Lua binding - the suspension will obliterate the Lua stack.
                     engine_->scheduler().blockOnMainThread(PZone->ZoneServer(timePoint));
@@ -505,7 +505,7 @@ void CLuaSimulation::tick(const Maybe<TickType> boundary) const
             const auto timePoint = timer::now() + 1ms;
             for (auto* PZone : g_PZoneList | std::views::values)
             {
-                if (!PZone->GetZoneEntities()->CharListEmpty())
+                if (!PZone->GetZoneEntities()->CharListEmpty() || PZone->GetBotCount() > 0)
                 {
                     // CheckTriggerAreas _only_ adds a trigger area to the player list.
                     // ZoneServer processes the actual events.
@@ -545,7 +545,7 @@ void CLuaSimulation::tick(const Maybe<TickType> boundary) const
             const auto timePoint = timer::now();
             for (auto* PZone : g_PZoneList | std::views::values)
             {
-                if (!PZone->GetZoneEntities()->CharListEmpty())
+                if (!PZone->GetZoneEntities()->CharListEmpty() || PZone->GetBotCount() > 0)
                 {
                     // We cannot co_await within a Lua binding - the suspension will obliterate the Lua stack.
                     engine_->scheduler().blockOnMainThread(PZone->GetZoneEntities()->ZoneServer(timePoint));

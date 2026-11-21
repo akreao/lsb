@@ -41,8 +41,15 @@ describe('Player bots', function()
 
     before_each(function()
         xi.test.world:setSetting('map.PLAYER_BOTS_ENABLED', true)
+        -- No automatic arrivals unless a test asks for them.
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 0)
         player = xi.test.world:spawnPlayer({ zone = zoneId })
         player.packets:clear()
+    end)
+
+    -- Bots outlive a test's player by the leave delay; start each test with none.
+    after_each(function()
+        GetZone(zoneId):despawnBots()
     end)
 
     it('does nothing while the setting is off', function()
@@ -138,13 +145,64 @@ describe('Player bots', function()
         assert(refused, 'second invite was not refused, so the first never reached the bot')
     end)
 
-    it('leaves when the last real player leaves the zone', function()
+    it('leaves a while after the last real player leaves the zone', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_LEAVE_DELAY', 30)
         assert(spawnBot('Leavebot'))
         assert(GetZone(zoneId):getBotCount() == 1, 'bot not counted')
 
         player:gotoZone(xi.zone.EAST_RONFAURE)
+        for _ = 1, 10 do
+            xi.test.world:skipTime(1)
+        end
+
+        assert(GetZone(zoneId):getBotCount() == 1, 'bot left before the leave delay')
+
+        for _ = 1, 30 do
+            xi.test.world:skipTime(1)
+        end
 
         assert(GetZone(zoneId):getBotCount() == 0, 'bot stayed in an empty zone')
+    end)
+
+    it('arrive one at a time while a player is in the zone, up to the zone target', function()
+        local zone = GetZone(zoneId)
+        xi.test.world:setSetting('map.PLAYER_BOTS_ARRIVAL_INTERVAL', 5)
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 3)
+        assert(#zone:getBotEntrances() > 0, 'West Ronfaure has no arrival points')
+
+        for _ = 1, 6 do
+            xi.test.world:skipTime(1)
+        end
+
+        assert(zone:getBotCount() <= 2, 'bots arrived all at once')
+
+        for _ = 1, 60 do
+            xi.test.world:skipTime(1)
+        end
+
+        assert(zone:getBotCount() == 3, string.format('zone has %d bots, wanted the cap of 3', zone:getBotCount()))
+    end)
+
+    it('never populates instances, Dynamis or excluded zones', function()
+        -- Stand-ins for zones this test map does not load.
+        local function fakeZone(id, mask)
+            local zone = {}
+
+            function zone:getID()
+                return id
+            end
+
+            function zone:getTypeMask()
+                return mask
+            end
+
+            return zone
+        end
+
+        assert(xi.bots.isZoneAllowed(GetZone(zoneId)), 'West Ronfaure should allow bots')
+        assert(not xi.bots.isZoneAllowed(fakeZone(xi.zone.FERETORY, xi.zoneType.CITY)), 'the Feretory allowed bots')
+        assert(not xi.bots.isZoneAllowed(fakeZone(xi.zone.DYNAMIS_SAN_DORIA, xi.zoneType.DYNAMIS)), 'Dynamis allowed bots')
+        assert(not xi.bots.isZoneAllowed(fakeZone(1, bit.bor(xi.zoneType.OUTDOORS, xi.zoneType.INSTANCED))), 'an instance allowed bots')
     end)
 
     it('writes nothing to the database', function()

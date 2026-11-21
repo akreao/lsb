@@ -75,6 +75,7 @@ public:
     void despawnBots();
     auto getBotCount() -> uint32;
     auto getBots() -> sol::table;
+    auto getBotEntrances() -> sol::table;
 
     auto getSoloBattleMusic();
     auto getPartyBattleMusic();

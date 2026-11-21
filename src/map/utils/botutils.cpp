@@ -37,6 +37,7 @@
 #include "items/item.h"
 #include "items/item_equipment.h"
 #include "job_points.h"
+#include "lua/luautils.h"
 #include "merit.h"
 #include "spell.h"
 #include "zone.h"
@@ -276,6 +277,22 @@ auto MayHunt(CCharEntity* PBot) -> bool
         });
 
     return hunting < cap;
+}
+
+void Populate(CZone* PZone)
+{
+    const auto populate = lua["xi"]["bots"]["populate"];
+    if (!populate.valid())
+    {
+        return;
+    }
+
+    const auto result = populate.get<sol::protected_function>()(PZone);
+    if (!result.valid())
+    {
+        const sol::error err = result;
+        ShowErrorFmt("botutils::Populate: {}", err.what());
+    }
 }
 
 auto GetBotDatabaseWrites() -> uint32

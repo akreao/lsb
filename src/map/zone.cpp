@@ -873,11 +873,6 @@ void CZone::DecreaseZoneCounter(CCharEntity* PChar)
     {
         m_zoneEntities->DespawnPC(PChar);
     }
-    else
-    {
-        // Bots only live while the zone has a real player in it.
-        m_zoneEntities->DespawnAllBots();
-    }
 
     CharZoneOut(PChar);
 }

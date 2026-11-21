@@ -177,6 +177,9 @@ private:
 
     timer::time_point m_EffectCheckTime{ timer::now() };
 
+    timer::time_point m_nextBotPopulate{}; // when xi.bots.populate next runs for this zone
+    timer::time_point m_botsAloneSince{};  // when the zone last lost its real players (bots leave after a grace period)
+
     timer::time_point m_computeTime{ timer::now() };
     uint16            m_lastCharComputeTargId{ 0 };
 

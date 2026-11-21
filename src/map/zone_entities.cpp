@@ -22,6 +22,7 @@
 #include "zone_entities.h"
 
 #include "common/logging_context.h"
+#include "common/settings.h"
 #include "data/enums/detects.h"
 #include "data/enums/mob_mod.h"
 #include "enmity_container.h"
@@ -2255,6 +2256,32 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     for (const uint16 targid : botsToRespawn)
     {
         respawnBot(targid);
+    }
+
+    // Bots arrive while the zone has real players and leave a while after the last one goes.
+    if (settings::get<bool>("map.PLAYER_BOTS_ENABLED"))
+    {
+        if (!m_charList.empty())
+        {
+            m_botsAloneSince = {};
+            if (tick >= m_nextBotPopulate)
+            {
+                m_nextBotPopulate = tick + std::chrono::seconds(settings::get<uint16>("map.PLAYER_BOTS_ARRIVAL_INTERVAL"));
+                botutils::Populate(m_zone);
+            }
+        }
+        else if (!m_botList.empty())
+        {
+            if (m_botsAloneSince == timer::time_point{})
+            {
+                m_botsAloneSince = tick;
+            }
+            else if (tick - m_botsAloneSince >= std::chrono::seconds(settings::get<uint16>("map.PLAYER_BOTS_LEAVE_DELAY")))
+            {
+                DespawnAllBots();
+                m_botsAloneSince = {};
+            }
+        }
     }
 
     //
