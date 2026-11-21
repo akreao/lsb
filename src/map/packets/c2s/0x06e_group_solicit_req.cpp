@@ -31,8 +31,10 @@
 #include "packets/s2c/0x029_battle_message.h"
 #include "packets/s2c/0x053_systemmes.h"
 #include "packets/s2c/0x0dc_group_solicit_req.h"
+#include "party.h"
 #include "status_effect_container.h"
 #include "utils/blacklistutils.h"
+#include "utils/botutils.h"
 #include "utils/jailutils.h"
 #include "utils/zoneutils.h"
 
@@ -92,6 +94,13 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_REQ::process(MapSession* PSession, CCharEntity
                 else
                 {
                     PInvitee = zoneutils::GetChar(inviteeCharId);
+                }
+
+                if (PInvitee && PInvitee->isBot())
+                {
+                    // A player bot has no client to answer; it decides on its own a moment later.
+                    botutils::OnPartyInvite(PInvitee, PInviter);
+                    break;
                 }
 
                 if (PInvitee)
@@ -161,6 +170,13 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_REQ::process(MapSession* PSession, CCharEntity
         break;
         case PartyKind::Alliance:
         {
+            // Player bots never join alliances: a party with one cannot form or join one.
+            if (PInviter->PParty && PInviter->PParty->HasBots())
+            {
+                PInviter->pushPacket<GP_SERV_COMMAND_MESSAGE>(PInviter, 0, 0, MsgStd::CannotInvite);
+                break;
+            }
+
             if (PInviter->PParty && PInviter->PParty->GetLeader() == PInviter &&
                 (PInviter->PParty->m_PAlliance == nullptr ||
                  (PInviter->PParty->m_PAlliance->getMainParty() == PInviter->PParty && !PInviter->PParty->m_PAlliance->isFull())))

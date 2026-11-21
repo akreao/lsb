@@ -302,6 +302,9 @@ void CZoneEntities::DespawnBot(const uint16 targid)
 
     auto* PBot = it->second.get();
 
+    // Out of its party first, so the members' party lists drop it before it is freed.
+    botutils::LeaveParty(PBot);
+
     FOR_EACH_PAIR_CAST_SECOND(CCharEntity*, PCurrentChar, m_charList)
     {
         if (const auto itr = PCurrentChar->SpawnPCList.find(PBot->id); itr != PCurrentChar->SpawnPCList.end())
@@ -2268,6 +2271,7 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
             {
                 m_nextBotPopulate = tick + std::chrono::seconds(settings::get<uint16>("map.PLAYER_BOTS_ARRIVAL_INTERVAL"));
                 botutils::Populate(m_zone);
+                botutils::IdleChat(m_zone);
             }
         }
         else if (!m_botList.empty())

@@ -32,6 +32,9 @@
 #include "utils/charutils.h"
 #include "utils/itemutils.h"
 
+#include <algorithm>
+#include <iterator>
+
 static constexpr timer::duration treasure_checktime = 3s;
 static constexpr timer::duration treasure_livetime  = 5min;
 
@@ -260,6 +263,29 @@ auto CTreasurePool::addItem(uint16 ItemID, CBaseEntity* PEntity) -> uint8
         // Issue RoE event for loot item and issue treasure pool packet
         roeutils::event(ROE_EVENT::ROE_LOOTITEM, member, RoeDatagram("itemid", m_PoolItems[FreeSlotID].ID));
         member->pushPacket<GP_SERV_COMMAND_TROPHY_LIST>(&m_PoolItems[FreeSlotID], PEntity, false);
+    }
+
+    // Player bots pass every item at once (custom), so loot only ever goes to a real player.
+    std::vector<CCharEntity*> bots;
+    std::ranges::copy_if(m_Members, std::back_inserter(bots), [](const CCharEntity* PMember)
+                         {
+                             return PMember->isBot();
+                         });
+
+    for (auto* PBot : bots)
+    {
+        // Passing can settle the slot (everyone passed); stop once it is empty.
+        if (m_PoolItems[FreeSlotID].ID != ItemID)
+        {
+            break;
+        }
+
+        passItem(PBot, FreeSlotID);
+    }
+
+    if (m_PoolItems[FreeSlotID].ID != ItemID)
+    {
+        return m_count;
     }
 
     if (memberCount() == 1)

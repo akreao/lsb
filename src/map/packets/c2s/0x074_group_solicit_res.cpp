@@ -85,6 +85,11 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_RES::process(MapSession* PSession, CCharEntity
                             // Cannot form alliance if you have Trusts
                             PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::TrustCannotJoinAlliance);
                         }
+                        else if (PChar->PParty->HasBots() || PInviter->PParty->HasBots())
+                        {
+                            // Player bots never join alliances (custom).
+                            PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::CannotBeProcessed);
+                        }
                         // the inviter already has an alliance and wants to add another party - only add if they have room for another party
                         else if (PInviter->PParty->m_PAlliance)
                         {

@@ -305,6 +305,7 @@ auto CLuaZone::spawnBot(const sol::table& table) -> CCharEntity*
     spec.pos.y        = table.get_or<float>("y", 0);
     spec.pos.z        = table.get_or<float>("z", 0);
     spec.pos.rotation = table.get_or<uint8>("rot", 0);
+    spec.seeking      = table.get_or("seeking", false);
 
     if (const auto gear = table.get<sol::optional<sol::table>>("gear"))
     {

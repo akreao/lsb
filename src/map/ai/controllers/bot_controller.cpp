@@ -33,12 +33,16 @@
 #include "enmity_container.h"
 #include "entities/char_entity.h"
 #include "entities/mob_entity.h"
+#include "enums/msg_std.h"
 #include "mob_spell_container.h"
+#include "packets/s2c/0x009_message.h"
+#include "party.h"
 #include "spell.h"
 #include "status_effect_container.h"
 #include "utils/battleutils.h"
 #include "utils/botutils.h"
 #include "utils/charutils.h"
+#include "utils/zoneutils.h"
 #include "weapon_skill.h"
 #include "zone.h"
 
@@ -51,6 +55,11 @@ constexpr float PlayerClearRange = 15.0f;
 constexpr float EngageRange      = 20.0f;
 constexpr float CasterRange      = 10.0f;
 constexpr float RoamRadius       = 20.0f;
+
+// In a party: how close the bot keeps to its leader, how far it runs to join a fight, and when it warps.
+constexpr float FollowDistance = 3.0f;
+constexpr float AssistRange    = 30.0f;
+constexpr float WarpDistance   = 50.0f;
 
 auto isBusy(const CCharEntity* PBot) -> bool
 {
@@ -74,6 +83,12 @@ CBotController::~CBotController() = default;
 
 auto CBotController::GambitLeader() const -> CCharEntity*
 {
+    // In a party the gambits look after the leader's party (the bot is in it); solo, after the bot alone.
+    if (auto* PLeader = PartyLeaderHere())
+    {
+        return PLeader;
+    }
+
     return PBot;
 }
 
@@ -94,7 +109,14 @@ auto CBotController::GambitTopEnmity() const -> CBattleEntity*
 
 auto CBotController::GambitPartyPosition() const -> uint8
 {
-    return 0;
+    if (PBot->PParty == nullptr)
+    {
+        return 0;
+    }
+
+    const auto& members = PBot->PParty->members;
+    const auto  it      = std::ranges::find(members, PBot);
+    return it != members.end() ? static_cast<uint8>(std::distance(members.begin(), it)) : 0;
 }
 
 auto CBotController::GambitMobSkill(EntityId /*target*/, uint16 /*skillId*/) -> bool
@@ -170,8 +192,52 @@ void CBotController::SetHome(const position_t& home)
     m_home = home;
 }
 
+void CBotController::QueueInvite()
+{
+    m_inviteAt = timer::now() + std::chrono::seconds(xirand::GetRandomNumber(2, 7));
+}
+
+void CBotController::QueueTellReply(const uint32 senderId)
+{
+    // One answer at a time: a burst of tells gets a single reply.
+    if (m_tellFrom != 0)
+    {
+        return;
+    }
+
+    m_tellFrom = senderId;
+    m_tellAt   = timer::now() + std::chrono::seconds(xirand::GetRandomNumber(2, 6));
+}
+
 auto CBotController::Tick(const timer::time_point tick) -> Task<void>
 {
+    if (PBot->InvitePending.entity.UniqueNo != 0 && tick >= m_inviteAt)
+    {
+        DecideInvite();
+    }
+
+    if (m_tellFrom != 0 && tick >= m_tellAt)
+    {
+        AnswerTell();
+    }
+
+    // Dismissed, or the party broke up: say goodbye to whoever led it and carry on alone.
+    if (m_inParty && PBot->PParty == nullptr)
+    {
+        if (auto* PLeader = zoneutils::GetChar(m_partyLeaderId); PLeader && PLeader->loc.zone == PBot->loc.zone)
+        {
+            botutils::Chat(PBot, "dismissed", botutils::ChatChannel::Tell, PLeader);
+        }
+
+        BackToSolo();
+    }
+
+    // The leader zoned out or logged out: the bot stays in its zone and leaves the party.
+    if (PBot->PParty != nullptr && PartyLeaderHere() == nullptr)
+    {
+        LeaveParty();
+    }
+
     if (PBot->isDead())
     {
         DeadTick(tick);
@@ -184,9 +250,213 @@ auto CBotController::Tick(const timer::time_point tick) -> Task<void>
     {
         co_await CombatTick(tick);
     }
+    else if (PBot->PParty != nullptr)
+    {
+        co_await PartyTick(tick);
+    }
     else
     {
         co_await SoloTick(tick);
+    }
+
+    co_return;
+}
+
+void CBotController::DecideInvite()
+{
+    const uint32 inviterId = PBot->InvitePending.entity.UniqueNo;
+    PBot->InvitePending.clean();
+
+    auto* PInviter = zoneutils::GetChar(inviterId);
+    if (PInviter == nullptr || PInviter->loc.zone != PBot->loc.zone || PBot->isDead())
+    {
+        return;
+    }
+
+    const int16 above = settings::get<uint8>("map.PLAYER_BOTS_PARTY_LEVEL_ABOVE");
+    const int16 below = settings::get<uint8>("map.PLAYER_BOTS_PARTY_LEVEL_BELOW");
+    const int16 gap   = static_cast<int16>(PInviter->GetMLevel()) - static_cast<int16>(PBot->GetMLevel());
+
+    auto* PParty = PInviter->PParty;
+
+    std::string refusal;
+    if (PBot->PParty != nullptr)
+    {
+        refusal = "refuse_busy";
+    }
+    else if (gap > above)
+    {
+        refusal = "refuse_high";
+    }
+    else if (-gap > below)
+    {
+        refusal = "refuse_low";
+    }
+    else if (!PInviter->PTrusts.empty() || (PParty && PParty->HasTrusts()))
+    {
+        refusal = "refuse_trusts";
+    }
+    else if (PParty && PParty->m_PAlliance != nullptr)
+    {
+        refusal = "refuse_alliance";
+    }
+    else if (PParty && (PParty->GetLeader() != PInviter || PParty->IsFull()))
+    {
+        refusal = "refuse_full";
+    }
+
+    if (!refusal.empty())
+    {
+        ShowDebugFmt("Player bots: {} turns down {}'s invite ({})", PBot->getName(), PInviter->getName(), refusal);
+        PInviter->pushPacket<GP_SERV_COMMAND_MESSAGE>(PInviter, 0, 0, MsgStd::InvitationDeclined);
+        botutils::Chat(PBot, refusal, botutils::ChatChannel::Tell, PInviter);
+        return;
+    }
+
+    if (PParty == nullptr)
+    {
+        PInviter->PParty = new CParty(PInviter); // cpp.sh allow
+    }
+
+    PInviter->PParty->AddMember(PBot);
+    if (PBot->PParty == nullptr)
+    {
+        ShowWarningFmt("Player bots: {} could not join {}'s party", PBot->getName(), PInviter->getName());
+        return;
+    }
+
+    m_inParty       = true;
+    m_partyLeaderId = PInviter->id;
+    m_hunting       = false;
+    m_fleeing       = false;
+    m_prey          = {};
+
+    if (IsResting())
+    {
+        StopResting();
+    }
+
+    PBot->PAI->PathFind->Clear();
+    botutils::Chat(PBot, "join", botutils::ChatChannel::Party);
+}
+
+void CBotController::AnswerTell()
+{
+    const uint32 senderId = m_tellFrom;
+    m_tellFrom            = 0;
+
+    if (auto* PSender = zoneutils::GetChar(senderId))
+    {
+        botutils::Chat(PBot, "tell", botutils::ChatChannel::Tell, PSender);
+    }
+}
+
+auto CBotController::PartyLeaderHere() const -> CCharEntity*
+{
+    if (PBot->PParty == nullptr)
+    {
+        return nullptr;
+    }
+
+    auto* PLeader = dynamic_cast<CCharEntity*>(PBot->PParty->GetLeader());
+    if (PLeader == nullptr || PLeader == PBot || PLeader->isBot() || PLeader->loc.zone != PBot->loc.zone ||
+        PLeader->status == xi::Status::Disappear || !std::ranges::contains(PBot->PParty->members, PLeader))
+    {
+        return nullptr;
+    }
+
+    return PLeader;
+}
+
+void CBotController::LeaveParty()
+{
+    ShowDebugFmt("Player bots: {} leaves its party (no leader in its zone)", PBot->getName());
+    botutils::Chat(PBot, "leave", botutils::ChatChannel::Party);
+    botutils::LeaveParty(PBot);
+    BackToSolo();
+}
+
+void CBotController::BackToSolo()
+{
+    m_inParty       = false;
+    m_partyLeaderId = 0;
+    m_home          = PBot->loc.p;
+    m_nextHuntCheck = timer::now() + 10s;
+
+    // Bots that were looking for a party when they arrived look again.
+    if (const auto* PSpec = botutils::GetSpec(PBot->id); PSpec && PSpec->seeking && !PBot->playerConfig.InviteFlg)
+    {
+        PBot->playerConfig.InviteFlg = true;
+        PBot->updatemask |= UPDATE_HP;
+    }
+}
+
+auto CBotController::PartyTick(const timer::time_point tick) -> Task<void>
+{
+    auto* PLeader = PartyLeaderHere();
+    if (PLeader == nullptr)
+    {
+        co_return;
+    }
+
+    // Assist: fight what the leader fights.
+    if (PLeader->PAI->IsEngaged())
+    {
+        auto* PTarget = PLeader->GetBattleTarget();
+        if (PTarget != nullptr && PTarget->isAlive() && ::distance(PBot->loc.p, PTarget->loc.p) <= AssistRange && !isBusy(PBot))
+        {
+            if (IsResting())
+            {
+                StopResting();
+            }
+
+            PBot->PAI->PathFind->Clear();
+            Engage(PTarget->entityId());
+            co_return;
+        }
+    }
+
+    // Rest when the leader rests.
+    const bool leaderResting = PLeader->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Healing);
+    const bool full          = PBot->GetHPP() >= 100 && (PBot->GetMaxMP() == 0 || PBot->GetMPP() >= 100);
+    if (IsResting())
+    {
+        if (full || !leaderResting)
+        {
+            StopResting();
+        }
+
+        co_return;
+    }
+
+    if (leaderResting && !full && !isBusy(PBot))
+    {
+        StartResting();
+        co_return;
+    }
+
+    // Follow the leader, keeping a little space.
+    const float range = ::distance(PBot->loc.p, PLeader->loc.p);
+    if (range > WarpDistance)
+    {
+        PBot->PAI->PathFind->WarpTo(PLeader->loc.p);
+    }
+    else if (range > FollowDistance && !isBusy(PBot))
+    {
+        if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PLeader->loc.p) > 2.0f)
+        {
+            PBot->PAI->PathFind->PathAround(PLeader->loc.p, FollowDistance, PATHFLAG_RUN);
+        }
+    }
+
+    if (PBot->PAI->PathFind->IsFollowingPath())
+    {
+        PBot->PAI->PathFind->FollowPath(tick);
+    }
+    else
+    {
+        // Cures and buffs between fights, as a trust does, only while standing still.
+        co_await m_gambits->Tick(tick);
     }
 
     co_return;
@@ -201,6 +471,11 @@ void CBotController::DeadTick(const timer::time_point tick)
     if (m_deathTime == timer::time_point{})
     {
         m_deathTime = tick;
+
+        if (PBot->PParty != nullptr)
+        {
+            botutils::Chat(PBot, "death", botutils::ChatChannel::Party);
+        }
     }
 
     // Nobody answers the raise menu for a bot, so it takes every raise it is offered.
@@ -224,7 +499,8 @@ auto CBotController::CombatTick(const timer::time_point tick) -> Task<void>
         co_return;
     }
 
-    if (ShouldFlee(PTarget))
+    // A bot in a party stands with it, as a player would.
+    if (PBot->PParty == nullptr && ShouldFlee(PTarget))
     {
         Disengage();
         m_hunting = false;

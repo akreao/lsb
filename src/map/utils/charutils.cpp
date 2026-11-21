@@ -4579,6 +4579,12 @@ void DistributeGil(CCharEntity* PChar, CMobEntity* PMob)
         // clang-format off
             PChar->ForAlliance([PMob, &members](CBattleEntity* PPartyMember)
             {
+                // Player bots take no share (custom): real players split the whole amount.
+                if (botutils::IsBot(PPartyMember))
+                {
+                    return;
+                }
+
                 if (PPartyMember->getZone() == PMob->getZone() && isWithinDistance(PPartyMember->loc.p, PMob->loc.p, 100.0f)) // TODO: verify range
                 {
                     members.emplace_back(static_cast<CCharEntity*>(PPartyMember));
@@ -4646,9 +4652,13 @@ void DistributeExperiencePoints(CCharEntity* PChar, CMobEntity* PMob)
 {
     TracyZoneScoped;
 
+    // Player bots in a party never count toward its size or top level and earn nothing from it (custom),
+    // so a real player gets the same exp as without them. A solo bot still earns its own.
+    const bool skipBots = PChar->PParty != nullptr;
+
     uint8      pcinzone = 0;
     uint8      minlevel = 0;
-    uint8      maxlevel = GetExpLevel(PChar);
+    uint8      maxlevel = skipBots && PChar->isBot() ? 0 : GetExpLevel(PChar);
     xi::Region region   = PChar->loc.zone->GetRegionID();
 
     if (PChar->PParty)
@@ -4676,8 +4686,13 @@ void DistributeExperiencePoints(CCharEntity* PChar, CMobEntity* PMob)
     }
 
     // clang-format off
-        PChar->ForAlliance([&pcinzone, &PMob, &minlevel, &maxlevel](CBattleEntity* PMember)
+        PChar->ForAlliance([&pcinzone, &PMob, &minlevel, &maxlevel, skipBots](CBattleEntity* PMember)
         {
+            if (skipBots && botutils::IsBot(PMember))
+            {
+                return;
+            }
+
             if (PMember->getZone() == PMob->getZone() && distance(PMember->loc.p, PMob->loc.p) < 100)
             {
                 if (PMember->PPet != nullptr && PMember->PPet->GetMLevel() > maxlevel && PMember->PPet->objtype != TYPE_PET)
@@ -4704,10 +4719,10 @@ void DistributeExperiencePoints(CCharEntity* PChar, CMobEntity* PMob)
     PMob->m_HiPCLvl     = maxlevel;
 
     // clang-format off
-        PChar->ForAlliance([&PMob, &region, &maxlevel, &pcinzone](CBattleEntity* PPartyMember)
+        PChar->ForAlliance([&PMob, &region, &maxlevel, &pcinzone, skipBots](CBattleEntity* PPartyMember)
         {
             CCharEntity* PMember = dynamic_cast<CCharEntity*>(PPartyMember);
-            if (!PMember || PMember->isDead())
+            if (!PMember || PMember->isDead() || (skipBots && PMember->isBot()))
             {
                 return;
             }
@@ -6772,6 +6787,13 @@ void LeaveParty(CCharEntity* PChar)
 void ReloadParty(CCharEntity* PChar)
 {
     TracyZoneScoped;
+
+    // A player bot's party lives in memory only; the database has no row to reload it from.
+    if (PChar->isBot())
+    {
+        PChar->ReloadPartyDec();
+        return;
+    }
 
     const auto rset = db::preparedStmt("SELECT partyid, allianceid, partyflag & ? AS partyflag "
                                        "FROM accounts_sessions s JOIN accounts_parties p ON "

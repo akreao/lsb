@@ -168,6 +168,7 @@ end
 ---@field z? number
 ---@field rot? integer
 ---@field gear? table<integer, integer> # xi.slot -> item id
+---@field seeking? boolean     # Shows the seeking party flag while on its own. Default: false
 
 ---@param botTable botSpawnParams
 ---@return CBaseEntity?

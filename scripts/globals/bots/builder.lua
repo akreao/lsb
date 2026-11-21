@@ -1,6 +1,7 @@
 -----------------------------------
 -- Player bots: picks a bot's name, looks, job, level and gear (custom, not retail)
 -----------------------------------
+require('scripts/globals/bots/chat')
 require('scripts/globals/bots/gambits')
 require('scripts/globals/bots/gear')
 -----------------------------------
@@ -274,7 +275,12 @@ xi.bots.spawn = function(zone, pos, overrides)
         z        = pos.z,
         rot      = pos.rot or math.random(0, 255),
         gear     = overrides.gear or xi.bots.gearFor(job, level),
+        seeking  = math.random(1, 3) == 1, -- about a third look for a party
     }
+
+    if overrides.seeking ~= nil then
+        spec.seeking = overrides.seeking
+    end
 
     -- A random name can clash with a character or a live bot; try a few.
     for _ = 1, 10 do

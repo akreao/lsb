@@ -33,13 +33,21 @@
 #include "ai/controllers/bot_controller.h"
 #include "ai/helpers/pathfind.h"
 #include "entities/char_entity.h"
+#include "enums/chat_message_type.h"
+#include "enums/msg_std.h"
+#include "enums/party_kind.h"
 #include "item_container.h"
 #include "items/item.h"
 #include "items/item_equipment.h"
 #include "job_points.h"
+#include "lua/lua_base_entity.h"
 #include "lua/luautils.h"
 #include "merit.h"
+#include "packets/s2c/0x009_message.h"
+#include "packets/s2c/0x017_chat_std.h"
+#include "party.h"
 #include "spell.h"
+#include "treasure_pool.h"
 #include "zone.h"
 #include "zoneutils.h"
 
@@ -70,6 +78,14 @@ std::unordered_map<uint32, BotSpec> liveBotSpecs;
 
 // Zone entrances, worked out once per zone.
 std::unordered_map<uint16, std::vector<position_t>> zoneEntrances;
+
+// When each zone may next hear an idle line from a bot.
+std::unordered_map<uint16, timer::time_point> nextIdleChat;
+
+auto controllerOf(CCharEntity* PBot) -> CBotController*
+{
+    return dynamic_cast<CBotController*>(PBot->PAI->GetController());
+}
 
 auto newBotId() -> uint32
 {
@@ -417,6 +433,8 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     PRaw->health.hp = PRaw->GetMaxHP();
     PRaw->health.mp = PRaw->GetMaxMP();
 
+    PRaw->playerConfig.InviteFlg = spec.seeking;
+
     PRaw->loc.p           = spec.pos;
     PRaw->loc.destination = PZone->GetID();
     PRaw->status          = xi::Status::Normal;
@@ -434,6 +452,181 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     }
 
     return PInserted;
+}
+
+void OnPartyInvite(CCharEntity* PBot, CCharEntity* PInviter)
+{
+    auto* PController = controllerOf(PBot);
+    if (PController == nullptr || PBot->isDead() || PBot->InvitePending.entity.UniqueNo != 0)
+    {
+        PInviter->pushPacket<GP_SERV_COMMAND_MESSAGE>(PInviter, 0, 0, MsgStd::CannotInvite);
+        return;
+    }
+
+    PBot->InvitePending.entity.UniqueNo = PInviter->id;
+    PBot->InvitePending.entity.ActIndex = PInviter->targid;
+    PBot->InvitePending.kind            = PartyKind::Party;
+    PController->QueueInvite();
+}
+
+void LeaveParty(CCharEntity* PBot)
+{
+    auto* PParty = PBot->PParty;
+    if (PParty == nullptr)
+    {
+        return;
+    }
+
+    const bool realMemberLeft = std::ranges::any_of(PParty->members, [PBot](const CBattleEntity* PMember)
+                                                    {
+                                                        return PMember != PBot && !IsBot(PMember);
+                                                    });
+
+    if (realMemberLeft)
+    {
+        // The normal path: the remaining members get a new party list, the bot gets its own loot pool.
+        PParty->RemoveMember(PBot);
+        return;
+    }
+
+    // Nobody real is left here (the leader zoned or logged out): drop the bot; the last one out ends the party.
+    PParty->PopMember(PBot);
+
+    if (PBot->PTreasurePool != nullptr && PBot->PTreasurePool->getPoolType() != TreasurePoolType::Zone)
+    {
+        PBot->PTreasurePool->delMember(PBot);
+        PBot->PTreasurePool = new CTreasurePool(TreasurePoolType::Solo); // cpp.sh allow
+        PBot->PTreasurePool->addMember(PBot);
+    }
+}
+
+auto FindBotByName(const std::string& name) -> CCharEntity*
+{
+    if (name.empty() || liveBotNames.empty())
+    {
+        return nullptr;
+    }
+
+    CCharEntity* PFound = nullptr;
+    zoneutils::ForEachZone(
+        [&](CZone* PZone)
+        {
+            if (PFound != nullptr || PZone->GetBotCount() == 0)
+            {
+                return;
+            }
+
+            PZone->ForEachBot(
+                [&](CCharEntity* PBot)
+                {
+                    if (PFound == nullptr && strcmpi(PBot->getName().c_str(), name.c_str()) == 0)
+                    {
+                        PFound = PBot;
+                    }
+                });
+        });
+
+    return PFound;
+}
+
+void OnTell(CCharEntity* PBot, CCharEntity* PSender)
+{
+    if (auto* PController = controllerOf(PBot))
+    {
+        PController->QueueTellReply(PSender->id);
+    }
+}
+
+void Chat(CCharEntity* PBot, const std::string& event, const ChatChannel channel, CCharEntity* PTarget)
+{
+    if (PBot == nullptr || !settings::get<bool>("map.PLAYER_BOTS_CHAT"))
+    {
+        return;
+    }
+
+    const auto chatLine = lua["xi"]["bots"]["chatLine"];
+    if (!chatLine.valid())
+    {
+        return;
+    }
+
+    const auto result = chatLine.get<sol::protected_function>()(CLuaBaseEntity(PBot), event);
+    if (!result.valid())
+    {
+        const sol::error err = result;
+        ShowErrorFmt("botutils::Chat: {}", err.what());
+        return;
+    }
+
+    const sol::object line = result;
+    if (!line.is<std::string>() || line.as<std::string>().empty())
+    {
+        return;
+    }
+
+    const auto text = line.as<std::string>();
+    switch (channel)
+    {
+        case ChatChannel::Tell:
+            if (PTarget != nullptr)
+            {
+                PTarget->pushPacket<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_TELL, text);
+            }
+            break;
+        case ChatChannel::Party:
+            if (PBot->PParty != nullptr)
+            {
+                PBot->PParty->PushPacket(PBot->id, xi::ZoneId::Unknown, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_PARTY, text));
+            }
+            break;
+        case ChatChannel::Say:
+            if (PBot->loc.zone != nullptr)
+            {
+                PBot->loc.zone->PushPacket(PBot, CHAR_INRANGE, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_SAY, text));
+            }
+            break;
+    }
+}
+
+void IdleChat(CZone* PZone)
+{
+    const auto interval = settings::get<uint16>("map.PLAYER_BOTS_SAY_INTERVAL");
+    if (PZone == nullptr || interval == 0 || (PZone->GetTypeMask() & xi::ZoneType::City) == xi::ZoneType::Unknown)
+    {
+        return;
+    }
+
+    const auto zoneId = static_cast<uint16>(PZone->GetID());
+    const auto now    = timer::now();
+    auto&      next   = nextIdleChat[zoneId];
+    if (next == timer::time_point{})
+    {
+        // Not the moment the first player arrives: start somewhere in the first interval.
+        next = now + std::chrono::seconds(xirand::GetRandomNumber<int32>(interval / 2, interval + 1));
+        return;
+    }
+
+    if (now < next)
+    {
+        return;
+    }
+
+    next = now + std::chrono::seconds(xirand::GetRandomNumber<int32>(interval / 2, interval * 3 / 2 + 1));
+
+    std::vector<CCharEntity*> speakers;
+    PZone->ForEachBot(
+        [&](CCharEntity* PBot)
+        {
+            if (PBot->isAlive() && PBot->PParty == nullptr && !PBot->PAI->IsEngaged())
+            {
+                speakers.push_back(PBot);
+            }
+        });
+
+    if (!speakers.empty())
+    {
+        Chat(speakers[xirand::GetRandomNumber(speakers.size())], "idle_city", ChatChannel::Say);
+    }
 }
 
 } // namespace botutils

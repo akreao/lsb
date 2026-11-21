@@ -39,6 +39,7 @@ class CGambitsContainer;
 }
 
 // Drives a player bot: a solo hunter (roam, hunt, fight, rest, flee) whose fighting uses trust gambits.
+// In a party it acts like a trust with the party leader as its master: follow, assist, rest, heal.
 // Bots are memory only and custom (not retail); see botutils.
 class CBotController : public CPlayerController, public gambits::IGambitsHost
 {
@@ -70,10 +71,29 @@ public:
     // Where the bot roams around and runs back to.
     void SetHome(const position_t& home);
 
+    // A party invite is waiting in the bot's InvitePending; it answers after a short, human-looking delay.
+    void QueueInvite();
+
+    // A player sent the bot a tell; it answers after a short delay.
+    void QueueTellReply(uint32 senderId);
+
 private:
     void DeadTick(timer::time_point tick);
     auto CombatTick(timer::time_point tick) -> Task<void>;
     auto SoloTick(timer::time_point tick) -> Task<void>;
+    auto PartyTick(timer::time_point tick) -> Task<void>;
+
+    void DecideInvite();
+    void AnswerTell();
+
+    // The real player leading the bot's party in its zone, or nullptr when there is none (zoned, logged out).
+    auto PartyLeaderHere() const -> CCharEntity*;
+
+    // Leaves the party on its own (leader zoned or logged out), saying goodbye.
+    void LeaveParty();
+
+    // Back on its own after a party: roam and hunt from here.
+    void BackToSolo();
 
     auto FindPrey() -> CMobEntity*;
     auto ShouldRest() const -> bool;
@@ -95,4 +115,11 @@ private:
     timer::time_point m_nextHuntCheck{};
     timer::time_point m_nextRoam{};
     timer::time_point m_deathTime{};
+
+    timer::time_point m_inviteAt{};
+    uint32            m_tellFrom{ 0 };
+    timer::time_point m_tellAt{};
+
+    bool   m_inParty{ false };   // was in a party at the last tick (to notice a dismissal)
+    uint32 m_partyLeaderId{ 0 }; // who invited it, to say goodbye when dismissed
 };

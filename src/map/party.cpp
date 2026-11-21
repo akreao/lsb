@@ -31,6 +31,7 @@
 #include "status_effect_container.h"
 #include "treasure_pool.h"
 #include "utils/blueutils.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/jailutils.h"
 #include "utils/zoneutils.h"
@@ -139,7 +140,10 @@ void CParty::DisbandParty(bool playerInitiated)
                 sync->SetDuration(30s);
             }
 
-            db::preparedStmt("DELETE FROM accounts_parties WHERE charid = ?", PChar->id);
+            if (!PChar->isBot())
+            {
+                db::preparedStmt("DELETE FROM accounts_parties WHERE charid = ?", PChar->id);
+            }
         }
 
         // make sure message server isn't notified of a disband if this came from the message server already
@@ -331,7 +335,10 @@ void CParty::RemoveMember(CBattleEntity* PEntity)
                 PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PChar, 0, 0, PChar->getZone());
                 PChar->pushPacket<CCharStatusPacket>(PChar);
 
-                db::preparedStmt("DELETE FROM accounts_parties WHERE charid = ?", PChar->id);
+                if (!PChar->isBot())
+                {
+                    db::preparedStmt("DELETE FROM accounts_parties WHERE charid = ?", PChar->id);
+                }
 
                 if (m_PAlliance)
                 {
@@ -357,6 +364,12 @@ void CParty::RemoveMember(CBattleEntity* PEntity)
 
             members.erase(memberToDelete);
             PEntity->PParty = nullptr;
+
+            // A bot is only in memory, so the members here learn it left from this process, not the database.
+            if (botutils::IsBot(PEntity))
+            {
+                ReloadParty();
+            }
         }
     }
 }
@@ -571,6 +584,23 @@ auto CParty::GetPartyInfo() const -> std::vector<CParty::partyInfo_t>
         }
     }
 
+    // Bots are party members in memory only; the database never has them.
+    for (const auto* PMember : members)
+    {
+        if (botutils::IsBot(PMember))
+        {
+            memberinfo.emplace_back(CParty::partyInfo_t{
+                .id         = PMember->id,
+                .partyid    = m_PartyID,
+                .allianceid = m_PAlliance ? m_PAlliance->m_AllianceID : 0,
+                .name       = PMember->getName(),
+                .flags      = 0,
+                .zone       = PMember->getZone(),
+                .prev_zone  = PMember->getZone(),
+            });
+        }
+    }
+
     return memberinfo;
 }
 
@@ -629,11 +659,19 @@ void CParty::AddMember(CBattleEntity* PEntity)
             allianceid = m_PAlliance->m_AllianceID;
         }
 
-        db::preparedStmt("INSERT INTO accounts_parties (charid, partyid, allianceid, partyflag) VALUES (?, ?, ?, ?)",
-                         PChar->id,
-                         m_PartyID,
-                         allianceid,
-                         GetMemberFlags(PChar));
+        if (PChar->isBot())
+        {
+            // Memory only: the members here are told at once; members on other processes never see bots.
+            ReloadParty();
+        }
+        else
+        {
+            db::preparedStmt("INSERT INTO accounts_parties (charid, partyid, allianceid, partyflag) VALUES (?, ?, ?, ?)",
+                             PChar->id,
+                             m_PartyID,
+                             allianceid,
+                             GetMemberFlags(PChar));
+        }
 
         if (m_PAlliance)
         {
@@ -864,7 +902,7 @@ void CParty::ReloadParty()
                         alliance = memberinfo.flags & (PARTY_SECOND | PARTY_THIRD);
                         j        = 0;
                     }
-                    auto* PPartyMember = zoneutils::GetChar(memberinfo.id);
+                    auto* PPartyMember = GetLocalMember(memberinfo.id);
                     if (PPartyMember)
                     {
                         PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PPartyMember, j, memberinfo.flags, PChar->getZone());
@@ -907,7 +945,7 @@ void CParty::ReloadParty()
             uint8 j = 0;
             for (auto&& memberinfo : info)
             {
-                auto* PPartyMember = zoneutils::GetChar(memberinfo.id);
+                auto* PPartyMember = GetLocalMember(memberinfo.id);
                 if (PPartyMember)
                 {
                     PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PPartyMember, j, memberinfo.flags, PChar->getZone());
@@ -959,7 +997,7 @@ void CParty::ReloadPartyMembers(CCharEntity* PChar)
             alliance = memberinfo.flags & (PARTY_SECOND | PARTY_THIRD);
             j        = 0;
         }
-        CCharEntity* PPartyMember = zoneutils::GetChar(memberinfo.id);
+        CCharEntity* PPartyMember = GetLocalMember(memberinfo.id);
         if (PPartyMember)
         {
             PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PPartyMember, j, memberinfo.flags, PChar->getZone());
@@ -1231,7 +1269,7 @@ void CParty::PushEffectsPacket()
             {
                 if (memberinfo.partyid == m_PartyID && memberinfo.id != PMemberChar->id)
                 {
-                    auto* PPartyMember = zoneutils::GetChar(memberinfo.id);
+                    auto* PPartyMember = GetLocalMember(memberinfo.id);
                     if (PPartyMember && PPartyMember->getZone() == PMemberChar->getZone())
                     {
                         sameZoneMembers.push_back(PPartyMember);
@@ -1349,13 +1387,40 @@ auto CParty::LoadPartySize() const -> uint32
         return static_cast<uint32>(members.size());
     }
 
+    // Bots count toward the six seats but have no database row.
+    const auto bots = static_cast<uint32>(std::ranges::count_if(members, [](const CBattleEntity* PMember)
+                                                                {
+                                                                    return botutils::IsBot(PMember);
+                                                                }));
+
     const auto rset = db::preparedStmt("SELECT COUNT(*) FROM accounts_parties WHERE partyid = ?", m_PartyID);
     if (rset && rset->rowsCount() && rset->next())
     {
-        return rset->get<uint32>(0);
+        return rset->get<uint32>(0) + bots;
     }
 
-    return 0;
+    return bots;
+}
+
+auto CParty::HasBots() const -> bool
+{
+    return std::ranges::any_of(members, [](const CBattleEntity* PMember)
+                               {
+                                   return botutils::IsBot(PMember);
+                               });
+}
+
+auto CParty::GetLocalMember(const uint32 id) const -> CCharEntity*
+{
+    for (auto* PMember : members)
+    {
+        if (PMember->id == id && botutils::IsBot(PMember))
+        {
+            return static_cast<CCharEntity*>(PMember);
+        }
+    }
+
+    return zoneutils::GetChar(id);
 }
 
 auto CParty::GetTimeLastMemberJoined() -> timer::time_point

@@ -379,4 +379,192 @@ describe('Player bots', function()
         assert(GetZone(zoneId):getBotCount() == 0, 'bot not cleared')
         assert(countIncoming(0x00D, botId) > 0, 'player was not told the bot despawned')
     end)
+
+    -- Party (phase 7) and chat (phase 8)
+
+    -- Lets the bot's invite delay (2 to 6 seconds) run out.
+    local function waitForAnswer()
+        for _ = 1, 8 do
+            xi.test.world:skipTime(1)
+        end
+    end
+
+    -- Tells (0x017 kind 3) the player got from the named sender.
+    local function tellsFrom(name)
+        local count = 0
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x017 and packet.data[0x04] == 3 then
+                local sender = {}
+                for i = 0, 14 do
+                    local byte = packet.data[0x08 + i]
+                    if byte == 0 then
+                        break
+                    end
+
+                    sender[#sender + 1] = string.char(byte)
+                end
+
+                if table.concat(sender) == name then
+                    count = count + 1
+                end
+            end
+        end
+
+        return count
+    end
+
+    local function inviteBot(name)
+        local bot = assert(spawnBot(name))
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        return bot
+    end
+
+    -- Packet 0x071 (kick) for the party member with this name.
+    local function kick(name)
+        local packet = ffi.new('uint8_t[28]')
+        packet[0x0A] = 0 -- Party
+        for i = 1, #name do
+            packet[0x0B + i] = string.byte(name, i)
+        end
+
+        player.packets:send(0x071, packet, ffi.sizeof(packet))
+    end
+
+    it('joins a party a moment after an invite, and writes nothing', function()
+        local writesBefore = GetBotDatabaseWrites()
+        player:setLevel(10)
+        local bot = assert(spawnBot('Joinbot'))
+
+        player.actions:inviteToParty(bot)
+        xi.test.world:skipTime(1)
+        assert(player:getPartySize() == 1, 'bot joined at once, with no delay')
+
+        player.packets:clear()
+        waitForAnswer()
+
+        assert(player:getPartySize() == 2, 'bot did not join the party')
+        assert(bot:getPartySize() == 2, 'bot does not know it is in the party')
+        assert(countIncoming(0x0DD, bot:getID()) > 0, 'party list sent to the leader has no bot')
+        assert(GetBotDatabaseWrites() == writesBefore, 'joining a party wrote to the database')
+    end)
+
+    it('turns down a leader too far above or below it, and says why', function()
+        player:setLevel(30)
+        local bot = inviteBot('Lowbot')
+        assert(bot:getPartySize() == 1, 'level 10 bot joined a level 30 leader')
+        assert(tellsFrom('Lowbot') == 1, 'bot did not say why it turned the invite down')
+
+        player:setLevel(1)
+        player.packets:clear()
+        xi.test.world:setSetting('map.PLAYER_BOTS_PARTY_LEVEL_BELOW', 5)
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        assert(bot:getPartySize() == 1, 'level 10 bot joined a level 1 leader')
+        assert(tellsFrom('Lowbot') == 1, 'bot did not say why it turned the invite down')
+    end)
+
+    it('goes back to hunting alone when dismissed', function()
+        player:setLevel(10)
+        local bot = inviteBot('Kickbot')
+        assert(bot:getPartySize() == 2, 'bot did not join the party')
+
+        player.packets:clear()
+        kick('Kickbot')
+        xi.test.world:skipTime(1)
+
+        assert(bot:getPartySize() == 1, 'bot is still in the party after a kick')
+        assert(player:getPartySize() == 1, 'leader still counts the bot')
+        assert(tellsFrom('Kickbot') == 1, 'bot said nothing when dismissed')
+        assert(GetZone(zoneId):getBotCount() == 1, 'dismissed bot left the zone')
+    end)
+
+    it('leaves the party when the leader zones out, and stays in its zone', function()
+        player:setLevel(10)
+        local bot = inviteBot('Zonebot')
+        assert(bot:getPartySize() == 2, 'bot did not join the party')
+
+        player:gotoZone(xi.zone.EAST_RONFAURE)
+        xi.test.world:skipTime(1)
+        xi.test.world:skipTime(1)
+
+        local bots = GetZone(zoneId):getBots()
+        assert(#bots == 1, 'bot left the zone with the leader')
+        assert(bots[1]:getPartySize() == 1, 'bot is still in the party after the leader zoned')
+    end)
+
+    it('passes every item in the party treasure pool', function()
+        player:setLevel(10)
+        local bot = inviteBot('Lootbot')
+        assert(bot:getPartySize() == 2, 'bot did not join the party')
+
+        player:addTreasure(xi.item.PEBBLE)
+
+        local passed = false
+        for _, item in ipairs(player:getTreasurePool():getItems()) do
+            if item.id == xi.item.PEBBLE then
+                for _, lotter in ipairs(item.lotters) do
+                    if lotter.member:getID() == bot:getID() and lotter.lot == 0 then
+                        passed = true
+                    end
+                end
+            end
+        end
+
+        assert(passed, 'bot did not pass the item')
+    end)
+
+    it('is left out of the party exp split', function()
+        player:setLevel(10)
+        local bot = inviteBot('Expbot')
+        assert(bot:getPartySize() == 2, 'bot did not join the party')
+
+        local calls = {}
+        local calculate = xi.experiencePoints.calculate
+        xi.experiencePoints.calculate = function(member, mob, data)
+            table.insert(calls, { id = member:getID(), partySize = data.partySize, highest = data.highestMemberLevel })
+            return calculate(member, mob, data)
+        end
+
+        local mob = player.entities:moveTo('Fungus_Beetle')
+        mob:setLevelRange(10, 10)
+        mob:respawn()
+        mob:updateClaim(player)
+        mob:takeDamage(2000000000, player)
+        for _ = 1, 5 do
+            xi.test.world:tickEntity(mob)
+            xi.test.world:skipTime(1)
+        end
+
+        xi.experiencePoints.calculate = calculate
+
+        assert(#calls == 1, string.format('exp worked out for %d members, wanted only the player', #calls))
+        assert(calls[1].id == player:getID(), 'exp went to the bot')
+        assert(calls[1].partySize == 1, string.format('bot counted in the party size (%d)', calls[1].partySize))
+    end)
+
+    it('answers a tell a moment later', function()
+        assert(spawnBot('Tellbot'))
+
+        local message = 'hello there'
+        local size    = 0x15 + #message + 1
+        size          = size + (4 - size % 4) % 4
+        local packet  = ffi.new('uint8_t[?]', size)
+        packet[0x04]  = 3
+        local name    = 'Tellbot'
+        for i = 1, #name do
+            packet[0x05 + i] = string.byte(name, i)
+        end
+
+        for i = 1, #message do
+            packet[0x14 + i] = string.byte(message, i)
+        end
+
+        player.packets:clear()
+        player.packets:send(0x0B6, packet, size)
+        assert(tellsFrom('Tellbot') == 0, 'bot answered at once')
+
+        waitForAnswer()
+        assert(tellsFrom('Tellbot') == 1, 'bot did not answer the tell')
+    end)
 end)

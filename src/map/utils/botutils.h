@@ -49,7 +49,8 @@ struct BotSpec
     uint8                                 subJob{ 0 };
     uint8                                 subLevel{ 0 };
     position_t                            pos{};
-    std::vector<std::pair<uint8, uint16>> gear; // equip slot, item id
+    bool                                  seeking{ false }; // shows the "seeking party" flag while on its own
+    std::vector<std::pair<uint8, uint16>> gear;             // equip slot, item id
 };
 
 // Bot ids sit above every real character id and below the mob id range (0x01000000).
@@ -91,5 +92,32 @@ void Populate(CZone* PZone);
 
 // Builds a bot and puts it in the zone. Returns nullptr when bots are off or the zone cannot take one.
 auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*;
+
+// A player invited the bot (packet 0x06E). The bot answers a few seconds later: it joins, or declines and
+// says why in a tell (inviter too far above or below its level, party full, trusts out, and so on).
+void OnPartyInvite(CCharEntity* PBot, CCharEntity* PInviter);
+
+// Takes the bot out of its party. Real members still here see it go; a party left with only bots ends.
+void LeaveParty(CCharEntity* PBot);
+
+// The live bot with this name (case does not matter), or nullptr.
+auto FindBotByName(const std::string& name) -> CCharEntity*;
+
+// A player sent the bot a tell; the bot answers with a canned line a moment later.
+void OnTell(CCharEntity* PBot, CCharEntity* PSender);
+
+enum class ChatChannel : uint8
+{
+    Tell,
+    Party,
+    Say,
+};
+
+// Says a canned line for the event (xi.bots.chatLine in Lua picks it, and keeps chat rare); nothing when the
+// Lua side has no line or map.PLAYER_BOTS_CHAT is off. A tell needs PTarget.
+void Chat(CCharEntity* PBot, const std::string& event, ChatChannel channel, CCharEntity* PTarget = nullptr);
+
+// Now and then a free bot in a city says something (map.PLAYER_BOTS_SAY_INTERVAL per zone).
+void IdleChat(CZone* PZone);
 
 } // namespace botutils

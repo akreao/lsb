@@ -105,6 +105,7 @@ public:
 
     auto GetTimeLastMemberJoined() -> timer::time_point;
     auto HasTrusts() -> bool;
+    auto HasBots() const -> bool; // player bots (memory-only members, see botutils)
     void MarkFormedByTrusts();
     auto IsFormedByTrusts() const -> bool;
 
@@ -137,5 +138,6 @@ private:
     void SetQuarterMaster(const std::string& MemberName);   // set Quartermaster
     auto RemovePartyLeader(CBattleEntity* PEntity) -> bool; // attempt to remove the leader of the party. Returns false if party is disbanded or otherwise invalid.
     auto GetPartyInfo() const -> std::vector<partyInfo_t>;
+    auto GetLocalMember(uint32 id) const -> CCharEntity*; // a member on this process, bots included
     void RefreshFlags(std::vector<partyInfo_t>&);
 };

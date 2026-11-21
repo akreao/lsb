@@ -30,6 +30,7 @@
 #include "map_session.h"
 #include "packets/c2s/validation.h"
 #include "packets/s2c/0x029_battle_message.h"
+#include "utils/botutils.h"
 #include "utils/jailutils.h"
 
 namespace
@@ -82,6 +83,14 @@ void GP_CLI_COMMAND_CHAT_NAME::process(MapSession* PSession, CCharEntity* PChar)
         luautils::HasCustomMenuContext(PChar))
     {
         luautils::HandleCustomMenu(PChar, rawMessage);
+        return;
+    }
+
+    // Player bots live in this process only; the world server would answer that they are offline.
+    if (auto* PBot = botutils::FindBotByName(recipientName))
+    {
+        botutils::OnTell(PBot, PChar);
+        auditTell(*PSession->scheduler, PChar, recipientName, rawMessage);
         return;
     }
 

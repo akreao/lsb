@@ -1,7 +1,9 @@
 -----------------------------------
 -- Player bots: fighting behaviour per job, in the trust gambit language (custom, not retail)
--- Gambits run only while the bot is engaged; out of combat it rests instead. A gambit whose spell or
--- ability the bot does not have yet does nothing, so one list per job covers every level.
+-- Solo, gambits run only while the bot is engaged and it rests between fights. In a party they also run
+-- between fights (cures, buffs, raises), and party roles follow the job as for trusts: healers keep the
+-- party up, tanks hold hate. A gambit whose spell or ability the bot does not have yet does nothing, so one
+-- list per job covers every level.
 -- Weapon skills come from the bot's own weapon skills (used as soon as it has the TP).
 -----------------------------------
 require('scripts/globals/gambits')
@@ -32,9 +34,23 @@ local function addCaster(bot)
     bot:addGambit(ai.t.TARGET, { ai.c.MPP_GTE, 0 }, { ai.r.MA, ai.s.HIGHEST, spellFamily.NONE }, 30)
 end
 
+-- The party healer: raises, cures early, keeps Protect and Shell on everyone (Kupipi's role).
+local function addHealer(bot)
+    bot:addGambit(ai.t.PARTY_DEAD, { ai.c.ALWAYS, 0 }, { ai.r.MA, ai.s.HIGHEST, spellFamily.RAISE })
+    bot:addGambit(ai.t.PARTY, { ai.c.HPP_LT, 75 }, { ai.r.MA, ai.s.HIGHEST, spellFamily.CURE })
+    bot:addGambit(ai.t.PARTY, { ai.c.NOT_STATUS, xi.effect.PROTECT }, { ai.r.MA, ai.s.HIGHEST, spellFamily.PROTECT })
+    bot:addGambit(ai.t.PARTY, { ai.c.NOT_STATUS, xi.effect.SHELL }, { ai.r.MA, ai.s.HIGHEST, spellFamily.SHELL })
+end
+
+-- A tank takes hate back from whoever has it (Naji's and Excenmille's role); solo it always has it.
+local function addTank(bot)
+    bot:addGambit(ai.t.TARGET, { ai.c.NOT_HAS_TOP_ENMITY, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PROVOKE })
+end
+
 local byJob =
 {
     [xi.job.WAR] = function(bot)
+        addTank(bot)
         bot:addGambit(ai.t.SELF, { ai.c.NOT_STATUS, xi.effect.BERSERK }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.BERSERK })
     end,
 
@@ -56,6 +72,7 @@ local byJob =
     end,
 
     [xi.job.PLD] = function(bot)
+        addTank(bot)
         bot:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.FLASH }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH }, 30)
     end,
 
@@ -76,8 +93,12 @@ local byJob =
     [xi.job.GEO] = addCaster,
 }
 
--- Gives a new bot the gambits for its jobs.
+-- Gives a new bot the gambits for its jobs. Main job roles come first, so a WHM heals before it buffs itself.
 xi.bots.applyGambits = function(bot)
+    if bot:getMainJob() == xi.job.WHM then
+        addHealer(bot)
+    end
+
     addSupport(bot)
     addShadows(bot)
 

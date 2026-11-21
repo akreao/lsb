@@ -332,4 +332,14 @@ xi.settings.map =
 
     -- Zone ids bots never enter, on top of instances and Dynamis (Chocobo Circuit, Mog Garden, Feretory).
     PLAYER_BOTS_EXCLUDED_ZONES = { 70, 280, 285 },
+
+    -- A bot turns down a party invite from a player more than this many levels above it, or below it.
+    PLAYER_BOTS_PARTY_LEVEL_ABOVE = 10,
+    PLAYER_BOTS_PARTY_LEVEL_BELOW = 10,
+
+    -- Bots say a few canned lines: party greetings and goodbyes, refusals, tell replies, rare city chatter.
+    PLAYER_BOTS_CHAT = true,
+
+    -- About this many seconds between idle bot lines in a city (0 = never).
+    PLAYER_BOTS_SAY_INTERVAL = 600,
 }
