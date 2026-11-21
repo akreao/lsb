@@ -60,6 +60,25 @@ describe('Player bots', function()
         assert(countIncoming(0x00D, bot:getID()) > 0, 'player was not sent a 0x00D for the bot')
         assert(bot:getMainLvl() == 10, 'bot level not set')
         assert(bot:getMaxHP() > 0, 'bot has no HP')
+        assert(bot:getSubJob() == xi.job.NONE, 'bot without a support job has one')
+        assert(bot:getSubLvl() == 0, 'bot without a support job has a support level')
+    end)
+
+    it('keeps a given support job', function()
+        local zone = assert(player:getZone())
+        local bot  = assert(zone:spawnBot({
+            name     = 'Subbot',
+            job      = xi.job.WAR,
+            level    = 20,
+            subJob   = xi.job.MNK,
+            subLevel = 10,
+            x        = player:getXPos(),
+            y        = player:getYPos(),
+            z        = player:getZPos(),
+        }))
+
+        assert(bot:getSubJob() == xi.job.MNK, 'support job not set')
+        assert(bot:getSubLvl() == 10, 'support level not set')
     end)
 
     it('answers /check with its equipment', function()

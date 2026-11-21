@@ -84,11 +84,14 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     PRaw->SetMJob(spec.mainJob);
     PRaw->SetMLevel(spec.mainLevel);
 
+    // Battle entities start as WAR/WAR; a bot with no support job must say so, as a player's does.
+    PRaw->SetSJob(spec.subJob);
+    PRaw->SetSLevel(0);
+
     if (spec.subJob != 0)
     {
         PRaw->jobs.unlocked |= 1 << spec.subJob;
         PRaw->jobs.job[spec.subJob] = spec.subLevel;
-        PRaw->SetSJob(spec.subJob);
         PRaw->SetSLevel(spec.subLevel);
     }
 
