@@ -137,3 +137,8 @@ xi.bots.chatLine = function(bot, event)
 
     return line
 end
+
+-- Forgets every chat cooldown (tests call it between cases).
+xi.bots.resetChat = function()
+    lastSaid = {}
+end

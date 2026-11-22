@@ -38,6 +38,11 @@ end
 function GetBotDatabaseWrites()
 end
 
+---Despawns every player bot and forgets all bot-wide state (names, specs, timers). For tests.
+---@return nil
+function ResetBots()
+end
+
 -- True when a player bot of this job and level can wear the item in that equip slot.
 ---@nodiscard
 ---@param itemId xi.item

@@ -78,6 +78,7 @@ using RegionsDataset      = xi::data::datasets::zones::regions::Dataset;
 #include "lua/luautils.h"
 
 #include "utils/battleutils.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/moduleutils.h"
 
@@ -882,6 +883,11 @@ auto CZone::InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*
     return m_zoneEntities->InsertBot(std::move(PBot));
 }
 
+void CZone::DespawnBot(const uint16 targid)
+{
+    m_zoneEntities->DespawnBot(targid);
+}
+
 void CZone::DespawnBots()
 {
     m_zoneEntities->DespawnAllBots();
@@ -913,6 +919,13 @@ void CZone::IncreaseZoneCounter(CCharEntity* PChar)
     {
         ShowWarning("CZone::IncreaseZoneCounter() - PChar is null, or Player zone or Treasure Pools is not null.");
         return;
+    }
+
+    // A real character always wins its name: a bot using it leaves at once.
+    if (auto* PBot = botutils::FindBotByName(PChar->getName()))
+    {
+        ShowInfoFmt("Player bots: {} logged in, so the bot with that name leaves", PChar->getName());
+        botutils::Despawn(PBot);
     }
 
     PChar->targid = m_zoneEntities->GetNewCharTargID();

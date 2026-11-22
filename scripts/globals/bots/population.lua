@@ -101,3 +101,11 @@ xi.bots.populate = function(zone)
         xi.bots.spawn(zone, pos)
     end
 end
+
+-- Forgets per-zone picks and chat cooldowns (map ResetBots calls it; tests run it between cases).
+xi.bots.reset = function()
+    zoneTargets = {}
+    if xi.bots.resetChat then
+        xi.bots.resetChat()
+    end
+end

@@ -53,6 +53,7 @@
 #include "zoneutils.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cctype>
 #include <string_view>
@@ -90,8 +91,14 @@ auto controllerOf(CCharEntity* PBot) -> CBotController*
 
 auto newBotId() -> uint32
 {
-    const uint32 id = nextBotId;
-    nextBotId       = nextBotId >= BotIdLast ? BotIdFirst : nextBotId + 1;
+    // Skip ids a live bot still has (the counter wraps after 1M spawns).
+    uint32 id = nextBotId;
+    do
+    {
+        id        = nextBotId;
+        nextBotId = nextBotId >= BotIdLast ? BotIdFirst : nextBotId + 1;
+    } while (liveBotSpecs.contains(id));
+
     return id;
 }
 
@@ -166,6 +173,14 @@ auto idRangeIsFree() -> bool
             return false;
         }
 
+        // Bots live in one map process's memory; tells, parties and names would break across several.
+        const auto zones = db::preparedStmt("SELECT COUNT(DISTINCT zoneip, zoneport) AS processes FROM zone_settings WHERE zoneport <> 0");
+        if (zones && zones->rowsCount() != 0 && zones->next() && zones->get<uint32>("processes") > 1)
+        {
+            ShowErrorFmt("Player bots: more than one map process is configured (zone_settings); bots stay off");
+            return false;
+        }
+
         db::setStatementObserver(&watchStatement);
         return true;
     }();
@@ -212,6 +227,156 @@ auto IsNameTaken(const std::string& name) -> bool
 
     const auto rset = db::preparedStmt("SELECT charid FROM chars WHERE charname = ? LIMIT 1", name);
     return rset && rset->rowsCount() != 0;
+}
+
+// Queries must be written into the code, so the tables are listed here; CheckDatabaseForBots warns about any
+// char table with a charid column that this list misses.
+struct BotRowCheck
+{
+    std::string_view table;
+    db::Query        query;
+};
+
+const auto botRowChecks = std::to_array<BotRowCheck>({
+    { "char_chocobos", db::Query("SELECT COUNT(*) AS n FROM char_chocobos WHERE charid BETWEEN ? AND ?") },
+    { "char_effects", db::Query("SELECT COUNT(*) AS n FROM char_effects WHERE charid BETWEEN ? AND ?") },
+    { "char_equip", db::Query("SELECT COUNT(*) AS n FROM char_equip WHERE charid BETWEEN ? AND ?") },
+    { "char_equip_saved", db::Query("SELECT COUNT(*) AS n FROM char_equip_saved WHERE charid BETWEEN ? AND ?") },
+    { "char_exp", db::Query("SELECT COUNT(*) AS n FROM char_exp WHERE charid BETWEEN ? AND ?") },
+    { "char_fishing_contest_history", db::Query("SELECT COUNT(*) AS n FROM char_fishing_contest_history WHERE charid BETWEEN ? AND ?") },
+    { "char_flags", db::Query("SELECT COUNT(*) AS n FROM char_flags WHERE charid BETWEEN ? AND ?") },
+    { "char_history", db::Query("SELECT COUNT(*) AS n FROM char_history WHERE charid BETWEEN ? AND ?") },
+    { "char_inventory", db::Query("SELECT COUNT(*) AS n FROM char_inventory WHERE charid BETWEEN ? AND ?") },
+    { "char_job_points", db::Query("SELECT COUNT(*) AS n FROM char_job_points WHERE charid BETWEEN ? AND ?") },
+    { "char_jobs", db::Query("SELECT COUNT(*) AS n FROM char_jobs WHERE charid BETWEEN ? AND ?") },
+    { "char_look", db::Query("SELECT COUNT(*) AS n FROM char_look WHERE charid BETWEEN ? AND ?") },
+    { "char_merit", db::Query("SELECT COUNT(*) AS n FROM char_merit WHERE charid BETWEEN ? AND ?") },
+    { "char_monstrosity", db::Query("SELECT COUNT(*) AS n FROM char_monstrosity WHERE charid BETWEEN ? AND ?") },
+    { "char_pet", db::Query("SELECT COUNT(*) AS n FROM char_pet WHERE charid BETWEEN ? AND ?") },
+    { "char_points", db::Query("SELECT COUNT(*) AS n FROM char_points WHERE charid BETWEEN ? AND ?") },
+    { "char_profile", db::Query("SELECT COUNT(*) AS n FROM char_profile WHERE charid BETWEEN ? AND ?") },
+    { "char_recast", db::Query("SELECT COUNT(*) AS n FROM char_recast WHERE charid BETWEEN ? AND ?") },
+    { "char_skills", db::Query("SELECT COUNT(*) AS n FROM char_skills WHERE charid BETWEEN ? AND ?") },
+    { "char_spells", db::Query("SELECT COUNT(*) AS n FROM char_spells WHERE charid BETWEEN ? AND ?") },
+    { "char_stats", db::Query("SELECT COUNT(*) AS n FROM char_stats WHERE charid BETWEEN ? AND ?") },
+    { "char_storage", db::Query("SELECT COUNT(*) AS n FROM char_storage WHERE charid BETWEEN ? AND ?") },
+    { "char_style", db::Query("SELECT COUNT(*) AS n FROM char_style WHERE charid BETWEEN ? AND ?") },
+    { "char_trust_ascension", db::Query("SELECT COUNT(*) AS n FROM char_trust_ascension WHERE charid BETWEEN ? AND ?") },
+    { "char_unlocks", db::Query("SELECT COUNT(*) AS n FROM char_unlocks WHERE charid BETWEEN ? AND ?") },
+    { "char_vars", db::Query("SELECT COUNT(*) AS n FROM char_vars WHERE charid BETWEEN ? AND ?") },
+    { "char_world_passes", db::Query("SELECT COUNT(*) AS n FROM char_world_passes WHERE charid BETWEEN ? AND ?") },
+    { "chars", db::Query("SELECT COUNT(*) AS n FROM chars WHERE charid BETWEEN ? AND ?") },
+});
+
+auto CheckDatabaseForBots() -> uint32
+{
+    const auto rset = db::preparedStmt("SELECT TABLE_NAME FROM information_schema.COLUMNS "
+                                       "WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'charid' AND TABLE_NAME LIKE 'char%'");
+    while (rset && rset->next())
+    {
+        const auto table = rset->get<std::string>("TABLE_NAME");
+        if (std::ranges::none_of(botRowChecks, [&](const BotRowCheck& check)
+                                 {
+                                     return check.table == table;
+                                 }))
+        {
+            ShowWarningFmt("Player bots: table {} has a charid column but is not in the bot row check", table);
+        }
+    }
+
+    uint32 total = 0;
+    for (const auto& [table, query] : botRowChecks)
+    {
+        const auto count = db::preparedStmt(db::selected(query), BotIdFirst, BotIdLast);
+        if (count && count->next())
+        {
+            if (const auto rows = count->get<uint32>("n"); rows != 0)
+            {
+                ShowErrorFmt("Player bots: {} row(s) with a bot id in {}", rows, table);
+                total += rows;
+            }
+        }
+    }
+    if (total != 0)
+    {
+        const auto alert = fmt::format("[Player bots] {} database row(s) carry a bot id. Check the map log.", total);
+        zoneutils::ForEachZone(
+            [&](CZone* PZone)
+            {
+                PZone->ForEachChar(
+                    [&](CCharEntity* PChar)
+                    {
+                        if (PChar->m_GMlevel > 0)
+                        {
+                            PChar->pushPacket<GP_SERV_COMMAND_CHAT_STD>(PChar, MESSAGE_SYSTEM_1, alert, "Server");
+                        }
+                    });
+            });
+    }
+
+    return total;
+}
+
+void DailyDatabaseCheck(const timer::time_point tick)
+{
+    static timer::time_point next{};
+    if (next == timer::time_point{})
+    {
+        next = tick + 5min; // not during start-up
+        return;
+    }
+
+    if (tick < next)
+    {
+        return;
+    }
+
+    next        = tick + 24h;
+    std::ignore = CheckDatabaseForBots();
+}
+
+void Despawn(CCharEntity* PBot)
+{
+    if (PBot != nullptr && PBot->loc.zone != nullptr)
+    {
+        PBot->loc.zone->DespawnBot(PBot->targid);
+    }
+}
+
+void ResetForTests()
+{
+    zoneutils::ForEachZone(
+        [](CZone* PZone)
+        {
+            PZone->DespawnBots();
+        });
+
+    liveBotNames.clear();
+    liveBotSpecs.clear();
+    zoneEntrances.clear();
+    nextIdleChat.clear();
+    nextBotId = BotIdFirst;
+
+    if (const auto reset = lua["xi"]["bots"]["reset"]; reset.valid())
+    {
+        std::ignore = reset.get<sol::protected_function>()();
+    }
+}
+
+void UpdateSpec(const CCharEntity* PBot)
+{
+    const auto it = liveBotSpecs.find(PBot->id);
+    if (it == liveBotSpecs.end())
+    {
+        return;
+    }
+
+    auto& spec     = it->second;
+    spec.mainLevel = PBot->jobs.job[spec.mainJob];
+    if (spec.subJob != 0)
+    {
+        spec.subLevel = std::min<uint8>(PBot->jobs.job[spec.subJob], spec.mainLevel / 2);
+    }
 }
 
 void Release(const uint32 botId, const std::string& name)
@@ -509,15 +674,9 @@ void LeaveParty(CCharEntity* PBot)
         return;
     }
 
-    // Nobody real is left here (the leader zoned or logged out): drop the bot; the last one out ends the party.
-    PParty->PopMember(PBot);
-
-    if (PBot->PTreasurePool != nullptr && PBot->PTreasurePool->getPoolType() != TreasurePoolType::Zone)
-    {
-        PBot->PTreasurePool->delMember(PBot);
-        PBot->PTreasurePool = new CTreasurePool(TreasurePoolType::Solo); // cpp.sh allow
-        PBot->PTreasurePool->addMember(PBot);
-    }
+    // Nobody real is left here (the leader zoned or logged out): the party ends for every bot still in it.
+    // Not playerInitiated: the database never had these members, so no other process needs telling.
+    PParty->DisbandParty(false);
 }
 
 auto FindBotByName(const std::string& name) -> CCharEntity*

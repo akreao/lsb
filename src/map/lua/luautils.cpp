@@ -324,6 +324,8 @@ void init(IPP mapIPP, bool isRunningInCI)
     lua.set_function("GetItemByID", &luautils::GetItemByID);
     lua.set_function("GetItemFlagsByID", &luautils::GetItemFlagsByID);
     lua.set_function("GetBotDatabaseWrites", &botutils::GetBotDatabaseWrites);
+    lua.set_function("ResetBots", &botutils::ResetForTests);
+    lua.set_function("CheckDatabaseForBots", &botutils::CheckDatabaseForBots);
     lua.set_function("CanBotWear", &botutils::CanWear);
     lua.set_function("GetItemLevelRequirementsByID", &luautils::GetItemLevelRequirementsByID);
     lua.set_function("GetNPCByID", &luautils::GetNPCByID);
@@ -4202,6 +4204,23 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
 
     CCharEntity* PChar = dynamic_cast<CCharEntity*>(PKiller);
 
+    // Player bots never take the player side of a death script (quests, records, key items): a bot's kill counts
+    // for a real party member in its zone, as a trust's does for its master, and a solo bot's kill has no killer.
+    if (PChar != nullptr && PChar->isBot())
+    {
+        CCharEntity* PReal = nullptr;
+        PChar->ForAlliance(
+            [&](CBattleEntity* PMember)
+            {
+                if (PReal == nullptr && !botutils::IsBot(PMember) && PMember->getZone() == PChar->getZone())
+                {
+                    PReal = static_cast<CCharEntity*>(PMember);
+                }
+            });
+
+        PChar = PReal;
+    }
+
     auto optParams = lua.create_table();
 
     optParams["isKiller"]          = false;
@@ -4219,7 +4238,7 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
         PChar->ForAlliance(
             [PMob, PChar, &onMobDeathEx](CBattleEntity* PMember)
             {
-                if (PMember->getZone() == PChar->getZone())
+                if (PMember->getZone() == PChar->getZone() && !botutils::IsBot(PMember))
                 {
                     bool isKiller          = PMember == PChar;
                     bool isWeaponSkillKill = (PMob->GetLocalVar("weaponskillHit") & 0xFFFFFF) > 0;
@@ -4242,7 +4261,7 @@ void OnMobDeath(CBaseEntity* PMob, CBaseEntity* PKiller)
             [PMob, PChar, &onMobDeathFramework, &onMobDeath, &filename, &optParams](CBattleEntity* PPartyMember)
             {
                 CCharEntity* PMember = static_cast<CCharEntity*>(PPartyMember);
-                if (PMember && PMember->getZone() == PChar->getZone())
+                if (PMember && PMember->getZone() == PChar->getZone() && !PMember->isBot())
                 {
                     uint32 weaponskillVar    = PMob->GetLocalVar("weaponskillHit");
                     uint16 weaponskillUsed   = weaponskillVar >> 24;

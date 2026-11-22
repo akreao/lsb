@@ -51,9 +51,9 @@ describe('Player bots', function()
         player.packets:clear()
     end)
 
-    -- Bots outlive a test's player by the leave delay; start each test with none.
+    -- Bots outlive a test's player by the leave delay; start each test with none and no leftover bot state.
     after_each(function()
-        GetZone(zoneId):despawnBots()
+        ResetBots()
     end)
 
     it('does nothing while the setting is off', function()
@@ -252,6 +252,7 @@ describe('Player bots', function()
 
         local writes = GetBotDatabaseWrites() - writesBefore
         assert(writes == 0, string.format('bot wrote to the database %d time(s)', writes))
+        assert(CheckDatabaseForBots() == 0, 'a char table has a row with a bot id')
     end)
 
     it('has a gear file that every job can wear', function()
@@ -629,5 +630,80 @@ describe('Player bots', function()
 
         local gap = math.abs(bot:getYPos() - player:getYPos())
         assert(gap < 0.5, string.format('bot stands %.2f yalms off the floor the player stands on', gap))
+    end)
+
+    it('turns down a trade at once', function()
+        local bot    = assert(spawnBot('Tradebot'))
+        local packet = ffi.new('uint8_t[12]')
+        for i = 0, 3 do
+            packet[0x04 + i] = bit.band(bit.rshift(bot:getID(), 8 * i), 0xFF)
+        end
+
+        packet[0x08] = bit.band(bot:getTargID(), 0xFF)
+        packet[0x09] = bit.rshift(bot:getTargID(), 8)
+        player.packets:clear()
+        player.packets:send(0x032, packet, ffi.sizeof(packet))
+
+        local cancelled = false
+        for _, incoming in ipairs(player.packets:getIncoming()) do
+            if incoming.type == 0x022 and packetReader.readU32(incoming.data, 0x08) == 1 then
+                cancelled = true
+            end
+        end
+
+        assert(cancelled, 'trade with a bot was not turned down')
+    end)
+
+    it('leaves when bots are turned off', function()
+        assert(spawnBot('Offlater'))
+        xi.test.world:setSetting('map.PLAYER_BOTS_ENABLED', false)
+        xi.test.world:skipTime(1)
+        assert(GetZone(zoneId):getBotCount() == 0, 'bot stayed after bots were turned off')
+    end)
+
+    it('comes back at the level it reached', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_RAISE_WAIT', 5)
+        local bot = assert(spawnBot('Growbot'))
+        bot:setLevel(12)
+        bot:setHP(0)
+        for _ = 1, 10 do
+            xi.test.world:skipTime(1)
+        end
+
+        local bots = GetZone(zoneId):getBots()
+        assert(#bots == 1 and bots[1]:isAlive(), 'dead bot did not come back')
+        assert(bots[1]:getMainLvl() == 12, string.format('bot came back at level %d, not 12', bots[1]:getMainLvl()))
+    end)
+
+    it('ends the party when the leader leaves a party of bots', function()
+        player:setLevel(10)
+        local bots = { inviteBot('Trioa'), inviteBot('Triob') }
+        assert(player:getPartySize() == 3, 'bots did not join the party')
+
+        player.actions:leaveParty()
+        xi.test.world:skipTime(1)
+
+        for _, bot in ipairs(bots) do
+            assert(bot:getPartySize() == 1, bot:getName() .. ' is still in a party')
+        end
+    end)
+
+    it('stays with the new leader when the old one leaves a party of two players and two bots', function()
+        player:setLevel(10)
+        local other = xi.test.world:spawnPlayer({ zone = zoneId, level = 10 })
+        other:setPos(player:getXPos() + 1, player:getYPos(), player:getZPos())
+        player.actions:inviteToParty(other)
+        other.actions:acceptPartyInvite()
+        local bots = { inviteBot('Duoa'), inviteBot('Duob') }
+        assert(player:getPartySize() == 4, string.format('party has %d members, wanted 4', player:getPartySize()))
+
+        player.actions:leaveParty()
+        xi.test.world:skipTime(1)
+        xi.test.world:skipTime(1)
+
+        assert(other:getPartySize() == 3, string.format('new leader has %d members, wanted 3', other:getPartySize()))
+        for _, bot in ipairs(bots) do
+            assert(bot:getPartySize() == 3, bot:getName() .. ' left the party with the old leader')
+        end
     end)
 end)

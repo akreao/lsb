@@ -49,6 +49,13 @@ void GP_CLI_COMMAND_TRADE_REQ::process(MapSession* PSession, CCharEntity* PChar)
 
     ShowDebugFmt("{} initiated trade request with {}", PChar->getName(), PTarget->getName());
 
+    // A player bot never trades (memory only, no items move): it turns the request down at once, as a player would.
+    if (PTarget->isBot())
+    {
+        PChar->pushPacket<GP_SERV_COMMAND_ITEM_TRADE_RES>(PTarget, GP_ITEM_TRADE_RES_KIND::Cancell);
+        return;
+    }
+
     // Retail answers a Monipulator's request with the generic error, and a request to one with its own message.
     if (PChar->m_PMonstrosity)
     {

@@ -31,6 +31,7 @@
 #include "packets/c2s/validation.h"
 #include "packets/s2c/0x029_battle_message.h"
 #include "utils/botutils.h"
+#include "utils/charutils.h"
 #include "utils/jailutils.h"
 
 namespace
@@ -87,7 +88,8 @@ void GP_CLI_COMMAND_CHAT_NAME::process(MapSession* PSession, CCharEntity* PChar)
     }
 
     // Player bots live in this process only; the world server would answer that they are offline.
-    if (auto* PBot = botutils::FindBotByName(recipientName))
+    // A real character with the name always wins; only then is the name a bot's.
+    if (auto* PBot = botutils::FindBotByName(recipientName); PBot != nullptr && charutils::getCharIdFromName(recipientName) == 0)
     {
         botutils::OnTell(PBot, PChar);
         auditTell(*PSession->scheduler, PChar, recipientName, rawMessage);

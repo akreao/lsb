@@ -330,6 +330,29 @@ void CZoneEntities::DespawnBot(const uint16 targid)
         }
     }
 
+    // Anything else fighting the bot (pets, trusts, other bots, a player) lets go of it too.
+    const auto forget = [PBot](CBaseEntity* PEntity)
+    {
+        auto* PBattle = dynamic_cast<CBattleEntity*>(PEntity);
+        if (PBattle != nullptr && PBattle != PBot && PBattle->battleTarget() == PBot)
+        {
+            PBattle->setBattleTarget(std::nullopt);
+        }
+    };
+
+    for (const auto& list : { &m_petList, &m_trustList, &m_charList })
+    {
+        for (const auto& [_, PEntity] : *list)
+        {
+            forget(PEntity);
+        }
+    }
+
+    for (const auto& [_, POther] : m_botList)
+    {
+        forget(POther.get());
+    }
+
     spatialGrid_.remove(PBot);
     botutils::Release(PBot->id, PBot->getName());
 
@@ -379,7 +402,8 @@ void CZoneEntities::respawnBot(const uint16 targid)
         return;
     }
 
-    // Copy before the despawn drops the saved spec.
+    // Copy before the despawn drops the saved spec, with any levels gained since it was made.
+    botutils::UpdateSpec(it->second.get());
     auto spec = *PSpec;
 
     const auto& entrances = botutils::GetEntrances(m_zone);
@@ -2103,10 +2127,15 @@ auto CZoneEntities::botTick(CCharEntity* PBot, timer::time_point tick) -> Task<v
         PBot->StatusEffectContainer->TickEffects(tick);
     }
 
+    const auto before = PBot->loc.p;
+
     co_await PBot->PAI->Tick(tick);
 
-    // Paths follow the navmesh, which is not quite the floor; keep the bot's feet on the ground.
-    botutils::SnapToGround(m_zone, PBot->loc.p);
+    // Paths follow the navmesh, which is not quite the floor; keep the bot's feet on the ground after it moves.
+    if (PBot->loc.p.x != before.x || PBot->loc.p.z != before.z)
+    {
+        botutils::SnapToGround(m_zone, PBot->loc.p);
+    }
 
     if (PBot->PTreasurePool)
     {
@@ -2283,9 +2312,18 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
         respawnBot(targid);
     }
 
+    // Bots turned off while the server runs: they all leave (out of their parties first).
+    if (!settings::get<bool>("map.PLAYER_BOTS_ENABLED") && !m_botList.empty())
+    {
+        ShowInfoFmt("Player bots: turned off, {} bot(s) leave {}", m_botList.size(), m_zone->getName());
+        DespawnAllBots();
+    }
+
     // Bots arrive while the zone has real players and leave a while after the last one goes.
     if (settings::get<bool>("map.PLAYER_BOTS_ENABLED"))
     {
+        botutils::DailyDatabaseCheck(tick);
+
         if (!m_charList.empty())
         {
             m_botsAloneSince = {};

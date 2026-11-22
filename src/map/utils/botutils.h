@@ -74,6 +74,22 @@ auto CanWear(uint16 itemId, uint8 job, uint8 level, uint8 equipSlot) -> bool;
 // True while a live bot has this name, or a real character has it in the database.
 auto IsNameTaken(const std::string& name) -> bool;
 
+// Takes a bot out of its zone now (out of its party first). Not for use inside that zone's tick.
+void Despawn(CCharEntity* PBot);
+
+// Forgets every bot-wide memory (names, specs, entrances, chat timers). Tests call it between cases.
+void ResetForTests();
+
+// Keeps the saved spec in step with the bot (its level after level-ups), so a respawn brings back the same bot.
+void UpdateSpec(const CCharEntity* PBot);
+
+// Counts rows with a bot id in every char* table that has a charid column. Bots must never be saved, so this is
+// 0; otherwise it logs an error and tells the online GMs. Returns the count.
+auto CheckDatabaseForBots() -> uint32;
+
+// Runs CheckDatabaseForBots once a day while bots are on (called from the zone tick; cheap when not due).
+void DailyDatabaseCheck(timer::time_point tick);
+
 // Forgets a despawned bot: frees its name and drops its saved spec.
 void Release(uint32 botId, const std::string& name);
 

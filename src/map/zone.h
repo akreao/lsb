@@ -229,6 +229,7 @@ public:
     virtual void InsertTRUST(CBaseEntity* PTrust);
 
     auto InsertBot(std::unique_ptr<CCharEntity> PBot) -> CCharEntity*;
+    void DespawnBot(uint16 targid);
     void DespawnBots();
     auto GetBotCount() const -> std::size_t;
     void ForEachBot(FnRef<void(CCharEntity*)> func);
