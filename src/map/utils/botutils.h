@@ -54,9 +54,10 @@ struct BotSpec
     std::vector<std::pair<uint8, uint16>> gear;             // equip slot, item id
 };
 
-// Bot ids sit above every real character id and below the mob id range (0x01000000).
-constexpr uint32 BotIdFirst = 0x00F00000;
-constexpr uint32 BotIdLast  = 0x00FFFFFF;
+// Bot ids sit far above real character ids (which count up from 1) and fit the 20 bits a /sea entry carries: the
+// client invites from /sea by that id, so a wider one comes back cut short.
+constexpr uint32 BotIdFirst = 0x000F0000;
+constexpr uint32 BotIdLast  = 0x000FFFFF;
 
 // True for an id in the reserved bot range. The range is checked against the chars table before any
 // bot spawns, so a real character never has one.

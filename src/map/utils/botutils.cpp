@@ -252,8 +252,9 @@ void watchStatement(const db::Query query, const std::vector<db::BoundValue>& pa
                 using T = std::decay_t<decltype(value)>;
                 if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool> && sizeof(T) >= 4)
                 {
+                    // Only a live bot's id: the range is small enough that gil amounts and the like fall in it.
                     const auto number = static_cast<int64>(value);
-                    return number >= BotIdFirst && number <= BotIdLast;
+                    return number >= BotIdFirst && number <= BotIdLast && liveBotSpecs.contains(static_cast<uint32>(number));
                 }
                 else
                 {

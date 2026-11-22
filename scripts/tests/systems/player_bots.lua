@@ -72,7 +72,8 @@ describe('Player bots', function()
     it('is drawn as a player with a PC targid and a reserved id', function()
         local bot = assert(spawnBot('Testbot'), 'bot did not spawn')
 
-        assert(bot:getID() >= 0x00F00000 and bot:getID() < 0x01000000, string.format('bad bot id 0x%X', bot:getID()))
+        -- /sea entries carry 20 bits of the id, and the client invites by it.
+        assert(bot:getID() >= 0x000F0000 and bot:getID() <= 0x000FFFFF, string.format('bad bot id 0x%X', bot:getID()))
         assert(bot:getTargID() >= 0x400 and bot:getTargID() < 0x700, string.format('bad bot targid 0x%X', bot:getTargID()))
         assert(bot:getTargID() ~= player:getTargID(), 'bot took the player targid')
         -- 0x00D: HP percent at 0x1E, in the first packet that carries the bot
@@ -951,15 +952,28 @@ describe('Player bots', function()
         assert(CheckDatabaseForBots() == 0, 'a bot row reached a char table')
     end)
 
+    it('joins from a /sea invite in its zone', function()
+        player:setLevel(10)
+        local bot = assert(spawnBot('Seabot'))
+
+        -- The id as /sea sent it (20 bits) and no target index, as the client sends an invite from the list.
+        local packet = ffi.new('uint8_t[12]')
+        ffi.cast('uint32_t*', packet + 0x04)[0] = bit.band(bot:getID(), 0xFFFFF)
+        player.packets:send(0x06E, packet, ffi.sizeof(packet))
+        waitForAnswer()
+
+        assert(bot:getPartySize() == 2, 'the bot did not join from a /sea invite')
+    end)
+
     it('turns down a /sea invite from another zone and says where it is', function()
         player:setLevel(10)
         xi.test.world:spawnPlayer({ zone = xi.zone.EAST_RONFAURE })
         local there = assert(GetZone(xi.zone.EAST_RONFAURE))
         local bot   = assert(there:spawnBot({ name = 'Farbot', job = xi.job.WAR, level = 10, x = 0, y = 0, z = 0 }))
 
-        -- An invite from the /sea list carries the character id only (no target index).
+        -- An invite from the /sea list carries the id as /sea sent it (20 bits) and no target index.
         local packet = ffi.new('uint8_t[12]')
-        ffi.cast('uint32_t*', packet + 0x04)[0] = bot:getID()
+        ffi.cast('uint32_t*', packet + 0x04)[0] = bit.band(bot:getID(), 0xFFFFF)
         player.packets:send(0x06E, packet, ffi.sizeof(packet))
         waitForAnswer()
 
