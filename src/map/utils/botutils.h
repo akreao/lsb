@@ -116,6 +116,14 @@ auto IsPlaceholderScript(const std::string& zoneName, const std::string& mobName
 // The real players a zone counts: not GM-hidden, not leaving.
 auto RealPlayers(CZone* PZone) -> std::vector<CCharEntity*>;
 
+// True when a bot of this level may party with a party whose highest real member has the given level
+// (map.PLAYER_BOTS_PARTY_LEVEL_ABOVE and _BELOW).
+auto FitsPartyLevel(uint8 highest, uint8 level) -> bool;
+
+// A real player in the zone, other than the inviter, who shows the "seeking party" flag, has no party and fits
+// a party of this top level; nullptr when there is none. Bots turn invites down while one waits: people first.
+auto FindSeeker(CZone* PZone, const CCharEntity* PInviter, uint8 highest) -> CCharEntity*;
+
 // Notes where real players are fighting; a camp stays for map.PLAYER_BOTS_CAMP_MINUTES after their last fight.
 // Called every zone tick while the zone has real players.
 void TrackCamps(CZone* PZone);
@@ -142,6 +150,15 @@ void OnPartyInvite(CCharEntity* PBot, CCharEntity* PInviter);
 
 // Takes the bot out of its party. Real members still here see it go; a party left with only bots ends.
 void LeaveParty(CCharEntity* PBot);
+
+// True when a party bot may follow this leader where it is now: bots are on, the zone takes bots (not an
+// instance, Dynamis or an excluded zone) and the leader is not in a Mog House.
+auto MayFollowInto(const CCharEntity* PLeader) -> bool;
+
+// Moves a party bot to its leader's zone (custom): the bot leaves its zone and a copy from the same spec, at the
+// level it reached, arrives next to the leader and takes its seat in the same party. Called by the bot's zone
+// after its tick; PBot is freed.
+void FollowLeader(CCharEntity* PBot, CCharEntity* PLeader);
 
 // The live bot with this name (case does not matter), or nullptr.
 auto FindBotByName(const std::string& name) -> CCharEntity*;

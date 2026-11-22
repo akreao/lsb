@@ -21,8 +21,6 @@
 
 #pragma once
 
-#pragma once
-
 #include "common/cbasetypes.h"
 
 #include "entities/base_entity.h"
@@ -55,6 +53,13 @@ public:
 
     // Uses a mob skill (trusts' own skills); hosts without them return false.
     virtual auto GambitMobSkill(EntityId target, uint16 skillId) -> bool = 0;
+
+    // True when the owner should pull hate to itself now (the SHOULD_TAKE_HATE condition). Hosts that do not
+    // use the condition keep this default.
+    virtual auto GambitShouldTakeHate() const -> bool
+    {
+        return false;
+    }
 };
 
 } // namespace gambits

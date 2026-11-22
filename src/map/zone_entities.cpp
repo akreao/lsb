@@ -2295,14 +2295,22 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     }
 
     std::vector<uint16> botsToRespawn;
+    std::vector<uint16> botsToFollow;
     for (auto* PEntity : tickEntityScratch_)
     {
         auto* PBot = static_cast<CCharEntity*>(PEntity);
         co_await botTick(PBot, tick);
 
-        if (const auto* PController = dynamic_cast<CBotController*>(PBot->PAI->GetController()); PController && PController->WantsRespawn())
+        if (const auto* PController = dynamic_cast<CBotController*>(PBot->PAI->GetController()))
         {
-            botsToRespawn.push_back(PBot->targid);
+            if (PController->WantsRespawn())
+            {
+                botsToRespawn.push_back(PBot->targid);
+            }
+            else if (PController->FollowTarget() != 0)
+            {
+                botsToFollow.push_back(PBot->targid);
+            }
         }
     }
 
@@ -2310,6 +2318,20 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     for (const uint16 targid : botsToRespawn)
     {
         respawnBot(targid);
+    }
+
+    // Party bots whose leader zoned go after it (custom). The leader is looked up again: the tick above may have
+    // run zone scripts.
+    for (const uint16 targid : botsToFollow)
+    {
+        if (const auto it = m_botList.find(targid); it != m_botList.end())
+        {
+            auto* PBot = it->second.get();
+            if (const auto* PController = dynamic_cast<CBotController*>(PBot->PAI->GetController()))
+            {
+                botutils::FollowLeader(PBot, zoneutils::GetChar(PController->FollowTarget()));
+            }
+        }
     }
 
     // Bots turned off while the server runs: they all leave (out of their parties first).

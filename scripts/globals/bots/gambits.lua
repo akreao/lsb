@@ -4,7 +4,8 @@
 -- between fights (cures, buffs, raises), and party roles follow the job as for trusts: healers keep the
 -- party up, tanks hold hate. A gambit whose spell or ability the bot does not have yet does nothing, so one
 -- list per job covers every level.
--- Weapon skills come from the bot's own weapon skills (used as soon as it has the TP).
+-- Weapon skills come from the bot's own weapon skills: solo as soon as it has the TP; in a party it holds TP to
+-- close a skillchain someone else opens (or uses it at 3000).
 -----------------------------------
 require('scripts/globals/gambits')
 -----------------------------------
@@ -42,9 +43,10 @@ local function addHealer(bot)
     bot:addGambit(ai.t.PARTY, { ai.c.NOT_STATUS, xi.effect.SHELL }, { ai.r.MA, ai.s.HIGHEST, spellFamily.SHELL })
 end
 
--- A tank takes hate back from whoever has it (Naji's and Excenmille's role); solo it always has it.
+-- A tank takes hate back when it should: solo whenever it lost it; in a party only with no real PLD, NIN or RUN
+-- in it, and only when the mob is hitting a healer or caster (the map decides, see SHOULD_TAKE_HATE).
 local function addTank(bot)
-    bot:addGambit(ai.t.TARGET, { ai.c.NOT_HAS_TOP_ENMITY, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PROVOKE })
+    bot:addGambit(ai.t.TARGET, { ai.c.SHOULD_TAKE_HATE, 0 }, { ai.r.JA, ai.s.SPECIFIC, xi.ja.PROVOKE })
 end
 
 local byJob =
@@ -73,7 +75,7 @@ local byJob =
 
     [xi.job.PLD] = function(bot)
         addTank(bot)
-        bot:addGambit(ai.t.TARGET, { ai.c.NOT_STATUS, xi.effect.FLASH }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH }, 30)
+        bot:addGambit(ai.t.TARGET, { ai.c.SHOULD_TAKE_HATE, 0 }, { ai.r.MA, ai.s.SPECIFIC, xi.magic.spell.FLASH }, 30)
     end,
 
     [xi.job.DRK] = function(bot)

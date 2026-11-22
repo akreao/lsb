@@ -557,6 +557,25 @@ auto RealPlayers(CZone* PZone) -> std::vector<CCharEntity*>
     return players;
 }
 
+auto FitsPartyLevel(const uint8 highest, const uint8 level) -> bool
+{
+    const int16 gap = static_cast<int16>(highest) - static_cast<int16>(level);
+    return gap <= settings::get<uint8>("map.PLAYER_BOTS_PARTY_LEVEL_ABOVE") && -gap <= settings::get<uint8>("map.PLAYER_BOTS_PARTY_LEVEL_BELOW");
+}
+
+auto FindSeeker(CZone* PZone, const CCharEntity* PInviter, const uint8 highest) -> CCharEntity*
+{
+    for (auto* PChar : RealPlayers(PZone))
+    {
+        if (PChar != PInviter && PChar->isSeekingParty() && PChar->PParty == nullptr && FitsPartyLevel(highest, PChar->GetMLevel()))
+        {
+            return PChar;
+        }
+    }
+
+    return nullptr;
+}
+
 void TrackCamps(CZone* PZone)
 {
     auto&      camps = playerCamps[static_cast<uint16>(PZone->GetID())];
@@ -889,6 +908,82 @@ void LeaveParty(CCharEntity* PBot)
     // Nobody real is left here (the leader zoned or logged out): the party ends for every bot still in it.
     // Not playerInitiated: the database never had these members, so no other process needs telling.
     PParty->DisbandParty(false);
+}
+
+auto MayFollowInto(const CCharEntity* PLeader) -> bool
+{
+    if (PLeader == nullptr || PLeader->loc.zone == nullptr || PLeader->inMogHouse() || !settings::get<bool>("map.PLAYER_BOTS_ENABLED"))
+    {
+        return false;
+    }
+
+    const auto isZoneAllowed = lua["xi"]["bots"]["isZoneAllowed"];
+    if (!isZoneAllowed.valid())
+    {
+        return false;
+    }
+
+    const auto result = isZoneAllowed.get<sol::protected_function>()(PLeader->loc.zone);
+    if (!result.valid())
+    {
+        const sol::error err = result;
+        ShowErrorFmt("botutils::MayFollowInto: {}", err.what());
+        return false;
+    }
+
+    return result.get<bool>();
+}
+
+void FollowLeader(CCharEntity* PBot, CCharEntity* PLeader)
+{
+    auto* PParty = PBot->PParty;
+    if (PParty == nullptr || PLeader == nullptr || PLeader->PParty != PParty || PLeader->loc.zone == nullptr)
+    {
+        return;
+    }
+
+    UpdateSpec(PBot);
+    const auto* PSpec = GetSpec(PBot->id);
+    if (PSpec == nullptr)
+    {
+        return;
+    }
+
+    auto spec    = *PSpec;
+    spec.seeking = false;
+    spec.pos     = PLeader->loc.p;
+    spec.pos.x += xirand::GetRandomNumber(-1.5f, 1.5f);
+    spec.pos.z += xirand::GetRandomNumber(-1.5f, 1.5f);
+
+    ShowDebugFmt("Player bots: {} follows {} to {}", PBot->getName(), PLeader->getName(), PLeader->loc.zone->getName());
+
+    // Out of the party quietly (the leader is still in it, so it lives on); the leader's list updates once, when
+    // the bot takes its seat again below.
+    PParty->PopMember(PBot);
+    PBot->PParty = nullptr;
+
+    auto* PDestination = PLeader->loc.zone;
+    Despawn(PBot);
+
+    auto* PFollower = SpawnBot(PDestination, spec);
+    if (PFollower == nullptr)
+    {
+        ShowWarningFmt("Player bots: {} could not follow {}", spec.name, PLeader->getName());
+        PParty->ReloadParty();
+        return;
+    }
+
+    PParty->AddMember(PFollower);
+    if (PFollower->PParty == nullptr)
+    {
+        PParty->ReloadParty();
+        return;
+    }
+
+    if (auto* PController = controllerOf(PFollower))
+    {
+        PController->JoinedByFollow(PLeader->id);
+    }
 }
 
 auto FindBotByName(const std::string& name) -> CCharEntity*

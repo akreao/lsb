@@ -664,6 +664,32 @@ void CLuaClientEntityPairActions::setLevelSync(CLuaBaseEntity* player) const
 }
 
 /************************************************************************
+ *  Function: setPartyLeader()
+ *  Purpose : Emits packet to hand party leadership to a member.
+ *  Example : player.actions:setPartyLeader(player2)
+ *  Notes   : Caller must be the party leader.
+ ************************************************************************/
+
+void CLuaClientEntityPairActions::setPartyLeader(CLuaBaseEntity* player) const
+{
+    if (!player)
+    {
+        TestError("setPartyLeader: Invalid player");
+        return;
+    }
+
+    const auto packet        = parent_->packets().createPacket<GP_CLI_COMMAND_GROUP_CHANGE2>();
+    auto*      leaderPacket  = packet->as<GP_CLI_COMMAND_GROUP_CHANGE2>();
+    leaderPacket->Kind       = static_cast<uint8_t>(GP_CLI_COMMAND_GROUP_CHANGE2_KIND::Party);
+    leaderPacket->ChangeKind = static_cast<uint8_t>(GP_CLI_COMMAND_GROUP_CHANGE2_CHANGEKIND::SetPartyLeader);
+
+    const auto name = player->getName();
+    std::memcpy(leaderPacket->sName, name.c_str(), std::min(name.size(), sizeof(leaderPacket->sName) - 1));
+
+    parent_->packets().sendBasicPacket(*packet);
+}
+
+/************************************************************************
  *  Function: tradeNpc()
  *  Purpose : Emits packet to trade with a NPC.
  *  Example : player.actions:tradeNpc('Maat', { {itemId=1234, quantity=1}, 5678 }, { eventId=123 })
@@ -1409,6 +1435,7 @@ void CLuaClientEntityPairActions::Register()
     SOL_REGISTER("setSeekingParty", CLuaClientEntityPairActions::setSeekingParty);
     SOL_REGISTER("blacklistAdd", CLuaClientEntityPairActions::blacklistAdd);
     SOL_REGISTER("setLevelSync", CLuaClientEntityPairActions::setLevelSync);
+    SOL_REGISTER("setPartyLeader", CLuaClientEntityPairActions::setPartyLeader);
     SOL_REGISTER("tradeNpc", CLuaClientEntityPairActions::tradeNpc);
     SOL_REGISTER("tradeRequest", CLuaClientEntityPairActions::tradeRequest);
     SOL_REGISTER("tradeAccept", CLuaClientEntityPairActions::tradeAccept);

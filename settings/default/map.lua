@@ -340,9 +340,13 @@ xi.settings.map =
     -- Starting zones, where bots roam and chat but never hunt (the Ronfaures, Gustabergs and Sarutabarutas).
     PLAYER_BOTS_NO_HUNT_ZONES = { 100, 101, 106, 107, 115, 116 },
 
-    -- A bot turns down a party invite from a player more than this many levels above it, or below it.
+    -- A bot turns down a party invite when the party's highest real member is more than this many levels above
+    -- it, or below it.
     PLAYER_BOTS_PARTY_LEVEL_ABOVE = 10,
     PLAYER_BOTS_PARTY_LEVEL_BELOW = 10,
+
+    -- At most this many bots in one party, so bots fill gaps and people still need people.
+    PLAYER_BOTS_MAX_PER_PARTY = 2,
 
     -- Bots say a few canned lines: party greetings and goodbyes, refusals, tell replies, rare city chatter.
     PLAYER_BOTS_CHAT = true,

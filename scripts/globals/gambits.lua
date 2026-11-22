@@ -97,6 +97,7 @@ ai.condition =
     JA_ON_COOLDOWN     = 37,
     VAL_URIEL_CHECK    = 38,
     TIMER              = 39, -- argument in seconds
+    SHOULD_TAKE_HATE   = 40, -- custom: player bots, see CBotController::GambitShouldTakeHate
 }
 ai.c = ai.condition
 

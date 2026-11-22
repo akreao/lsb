@@ -132,6 +132,12 @@ end
 function CClientEntityPairActions:setLevelSync(player)
 end
 
+---Hand party leadership to a member (caller must be party leader)
+---@param player CBaseEntity Party member to lead
+---@return nil
+function CClientEntityPairActions:setPartyLeader(player)
+end
+
 ---@class TradeItem
 ---@field itemId xi.item Item ID
 ---@field quantity? integer Quantity (default: 1)

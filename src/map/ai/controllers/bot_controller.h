@@ -56,6 +56,7 @@ public:
     auto GambitTopEnmity() const -> CBattleEntity* override;
     auto GambitPartyPosition() const -> uint8 override;
     auto GambitMobSkill(EntityId target, uint16 skillId) -> bool override;
+    auto GambitShouldTakeHate() const -> bool override;
 
     auto Gambits() const -> gambits::CGambitsContainer*;
 
@@ -77,6 +78,13 @@ public:
     // A player sent the bot a tell; it answers after a short delay.
     void QueueTellReply(uint32 senderId);
 
+    // The id of the party leader this bot should follow into another zone now, or 0. The zone moves the bot after
+    // its tick (botutils::FollowLeader), since a bot cannot leave its zone from inside it.
+    auto FollowTarget() const -> uint32;
+
+    // The bot was just moved into its leader's new zone and put back in the party: carry on as a party member.
+    void JoinedByFollow(uint32 leaderId);
+
 private:
     void DeadTick(timer::time_point tick);
     auto CombatTick(timer::time_point tick) -> Task<void>;
@@ -89,8 +97,15 @@ private:
     // The real player leading the bot's party in its zone, or nullptr when there is none (zoned, logged out).
     auto PartyLeaderHere() const -> CCharEntity*;
 
-    // Leaves the party on its own (leader zoned or logged out), saying goodbye.
+    // The leader is not in the bot's zone: follow it into its new zone, wait while it is on its way, or leave
+    // the party when it does not come back (logged out, left the party, or somewhere bots cannot go).
+    void LeaderGone(timer::time_point tick);
+
+    // Leaves the party on its own (leader logged out, or cannot be reached), saying goodbye.
     void LeaveParty();
+
+    // Weapon skills: solo as soon as the bot has the TP; in a party, hold TP to close a skillchain.
+    void ApplyTpMode();
 
     // Back on its own after a party: roam and hunt from here.
     void BackToSolo();
@@ -123,5 +138,12 @@ private:
     timer::time_point m_tellAt{};
 
     bool   m_inParty{ false };   // was in a party at the last tick (to notice a dismissal)
-    uint32 m_partyLeaderId{ 0 }; // who invited it, to say goodbye when dismissed
+    uint32 m_partyLeaderId{ 0 }; // the party's leader when last seen here, to follow it or say goodbye
+
+    uint32            m_followLeader{ 0 }; // set during a tick when the bot should follow its leader now
+    timer::time_point m_leaderGoneSince{}; // when the leader left the bot's zone
+    timer::time_point m_farSince{};        // when the bot fell out of reach of its leader in the same zone
+
+    bool  m_tpForParty{ false }; // the weapon skill mode the gambits run with
+    uint8 m_lastLevel{ 0 };      // to rebuild spells and weapon skills when the level changes (level sync)
 };

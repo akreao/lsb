@@ -28,6 +28,9 @@
 #include "entities/char_entity.h"
 #include "items/item_linkshell.h"
 #include "packets/c2s/validation.h"
+#include "packets/s2c/0x009_message.h"
+#include "party.h"
+#include "utils/botutils.h"
 
 namespace
 {
@@ -87,6 +90,17 @@ void GP_CLI_COMMAND_GROUP_CHANGE2::process(MapSession* PSession, CCharEntity* PC
         case GP_CLI_COMMAND_GROUP_CHANGE2_KIND::Party:
         {
             ShowDebugFmt("(Party) Altering permissions of {:?} to {}", memberName, this->ChangeKind);
+
+            // A player bot is never leader, quartermaster or sync target (custom): it has no client to lead with.
+            if (botutils::IsBot(PChar->PParty->GetMemberByName(memberName)) &&
+                (this->ChangeKind == static_cast<uint8_t>(GP_CLI_COMMAND_GROUP_CHANGE2_CHANGEKIND::SetPartyLeader) ||
+                 this->ChangeKind == static_cast<uint8_t>(GP_CLI_COMMAND_GROUP_CHANGE2_CHANGEKIND::SetQuartermaster) ||
+                 this->ChangeKind == static_cast<uint8_t>(GP_CLI_COMMAND_GROUP_CHANGE2_CHANGEKIND::SetLevelSync)))
+            {
+                PChar->pushPacket<GP_SERV_COMMAND_MESSAGE>(PChar, 0, 0, MsgStd::CannotBeProcessed);
+                break;
+            }
+
             PChar->PParty->AssignPartyRole(memberName, static_cast<GP_CLI_COMMAND_GROUP_CHANGE2_CHANGEKIND>(this->ChangeKind));
         }
         break;

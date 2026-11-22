@@ -624,7 +624,8 @@ void CParty::AddMember(CBattleEntity* PEntity)
         return;
     }
 
-    if (dynamic_cast<const CCharEntity*>(PEntity) != nullptr && m_PartyType == PARTY_PCS && HasTrusts())
+    // Player bots may join beside trusts (custom): they count for exp as trusts do.
+    if (dynamic_cast<const CCharEntity*>(PEntity) != nullptr && !botutils::IsBot(PEntity) && m_PartyType == PARTY_PCS && HasTrusts())
     {
         ShowWarning("CParty::AddMember() - Party had summoned trusts when trying to add a member.");
         return;

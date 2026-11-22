@@ -491,18 +491,47 @@ describe('Player bots', function()
         assert(GetZone(zoneId):getBotCount() == 1, 'dismissed bot left the zone')
     end)
 
-    it('leaves the party when the leader zones out, and stays in its zone', function()
+    it('follows its leader through a zone line, at the level it reached', function()
         player:setLevel(10)
         local bot = inviteBot('Zonebot')
         assert(bot:getPartySize() == 2, 'bot did not join the party')
+        bot:setLevel(12)
+        local level = 12
 
         player:gotoZone(xi.zone.EAST_RONFAURE)
-        xi.test.world:skipTime(1)
-        xi.test.world:skipTime(1)
+        for _ = 1, 3 do
+            xi.test.world:skipTime(1)
+        end
 
+        assert(GetZone(zoneId):getBotCount() == 0, 'bot stayed behind when the leader zoned')
+        local bots = GetZone(xi.zone.EAST_RONFAURE):getBots()
+        assert(#bots == 1, 'bot did not arrive in the leader\'s new zone')
+        assert(bots[1]:getName() == 'Zonebot', 'a different bot arrived')
+        assert(bots[1]:getMainLvl() == level, string.format('bot came back at %d, wanted %d', bots[1]:getMainLvl(), level))
+        assert(bots[1]:getPartySize() == 2, 'bot is not in the party after following')
+        assert(player:getPartySize() == 2, string.format('leader counts %d members, wanted 2', player:getPartySize()))
+        assert(utils.distance(bots[1]:getPos(), player:getPos()) < 10, 'bot did not arrive next to its leader')
+    end)
+
+    it('leaves the party when its leader does not come back', function()
+        local excluded = xi.settings.map.PLAYER_BOTS_EXCLUDED_ZONES
+        xi.settings.map.PLAYER_BOTS_EXCLUDED_ZONES = { xi.zone.EAST_RONFAURE }
+
+        player:setLevel(10)
+        local bot = inviteBot('Stayer')
+        assert(bot:getPartySize() == 2, 'bot did not join the party')
+
+        player:gotoZone(xi.zone.EAST_RONFAURE)
+        xi.test.world:skipTime(5)
         local bots = GetZone(zoneId):getBots()
-        assert(#bots == 1, 'bot left the zone with the leader')
-        assert(bots[1]:getPartySize() == 1, 'bot is still in the party after the leader zoned')
+        assert(#bots == 1 and bots[1]:getPartySize() == 2, 'bot gave up on its leader at once')
+
+        xi.test.world:skipTime(150)
+        xi.settings.map.PLAYER_BOTS_EXCLUDED_ZONES = excluded
+
+        bots = GetZone(zoneId):getBots()
+        assert(#bots == 1, 'bot followed into an excluded zone')
+        assert(bots[1]:getPartySize() == 1, 'bot is still in the party after waiting')
     end)
 
     it('passes every item in the party treasure pool', function()
@@ -526,15 +555,15 @@ describe('Player bots', function()
         assert(passed, 'bot did not pass the item')
     end)
 
-    it('is left out of the party exp split', function()
-        player:setLevel(10)
+    it('counts in the party exp split as a trust does', function()
+        player:setLevel(5)
         local bot = inviteBot('Expbot')
         assert(bot:getPartySize() == 2, 'bot did not join the party')
 
         local calls = {}
         local calculate = xi.experiencePoints.calculate
         xi.experiencePoints.calculate = function(member, mob, data)
-            table.insert(calls, { id = member:getID(), partySize = data.partySize, highest = data.highestMemberLevel })
+            calls[member:getID()] = { partySize = data.partySize, highest = data.highestMemberLevel }
             return calculate(member, mob, data)
         end
 
@@ -542,6 +571,7 @@ describe('Player bots', function()
         mob:setLevelRange(10, 10)
         mob:respawn()
         mob:updateClaim(player)
+        bot:setPos(player:getXPos(), player:getYPos(), player:getZPos())
         mob:takeDamage(2000000000, player)
         for _ = 1, 5 do
             xi.test.world:tickEntity(mob)
@@ -550,9 +580,118 @@ describe('Player bots', function()
 
         xi.experiencePoints.calculate = calculate
 
-        assert(#calls == 1, string.format('exp worked out for %d members, wanted only the player', #calls))
-        assert(calls[1].id == player:getID(), 'exp went to the bot')
-        assert(calls[1].partySize == 1, string.format('bot counted in the party size (%d)', calls[1].partySize))
+        local mine = calls[player:getID()]
+        assert(mine, 'player got no exp')
+        assert(mine.partySize == 2, string.format('bot not counted in the party size (%d)', mine.partySize))
+        assert(mine.highest == 10, string.format('bot not counted as the top level (%d)', mine.highest))
+    end)
+
+    it('takes at most two bots in a party', function()
+        player:setLevel(10)
+        local bots = { inviteBot('Capa'), inviteBot('Capb') }
+        assert(player:getPartySize() == 3, 'first two bots did not join')
+
+        player.packets:clear()
+        local third = inviteBot('Capc')
+        assert(third:getPartySize() == 1, 'a third bot joined')
+        assert(tellsFrom('Capc') == 1, 'third bot did not say why')
+        assert(#bots == 2)
+    end)
+
+    it('checks the level gap against the party\'s highest real member', function()
+        player:setLevel(10)
+        local friend = xi.test.world:spawnPlayer({ zone = zoneId, level = 40 })
+        friend:setPos(player:getXPos() + 1, player:getYPos(), player:getZPos())
+        player.actions:inviteToParty(friend)
+        friend.actions:acceptPartyInvite()
+
+        local bot = inviteBot('Gapbot')
+        assert(bot:getPartySize() == 1, 'level 10 bot joined a party with a level 40 member')
+    end)
+
+    it('is level synced with its party', function()
+        player:setLevel(20)
+        local target = xi.test.world:spawnPlayer({ zone = zoneId, level = 12 })
+        target:setPos(player:getXPos() + 1, player:getYPos(), player:getZPos())
+        player.actions:inviteToParty(target)
+        target.actions:acceptPartyInvite()
+
+        local zone = assert(player:getZone())
+        local early = assert(zone:spawnBot({ name = 'Synca', job = xi.job.WAR, level = 18, x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() }))
+        player.actions:inviteToParty(early)
+        waitForAnswer()
+        assert(early:getPartySize() == 3, 'first bot did not join')
+
+        player.actions:setLevelSync(target)
+        xi.test.world:skipTime(1)
+        assert(early:getMainLvl() == 12, string.format('bot in the party was not synced (level %d)', early:getMainLvl()))
+
+        local late = assert(zone:spawnBot({ name = 'Syncb', job = xi.job.WAR, level = 18, x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() }))
+        player.actions:inviteToParty(late)
+        waitForAnswer()
+        assert(late:getPartySize() == 4, 'second bot did not join')
+        assert(late:getMainLvl() == 12, string.format('bot joining a synced party was not synced (level %d)', late:getMainLvl()))
+    end)
+
+    it('will not lead or be the sync target', function()
+        player:setLevel(20)
+        local bot = assert(player:getZone()):spawnBot({ name = 'Leadbot', job = xi.job.WAR, level = 20, x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() })
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        assert(bot:getPartySize() == 2, 'bot did not join')
+
+        player.packets:clear()
+        player.actions:setPartyLeader(bot)
+        xi.test.world:skipTime(1)
+        local leader = player:getPartyLeader()
+        assert(leader and leader:getID() == player:getID(), 'leadership went to the bot')
+        assert(countIncoming(0x009, player:getID()) > 0, 'player was not told the hand-off failed')
+
+        player.actions:setLevelSync(bot)
+        xi.test.world:skipTime(1)
+        assert(not player:hasStatusEffect(xi.effect.LEVEL_SYNC), 'party synced to a bot')
+    end)
+
+    it('joins a party that has trusts', function()
+        player:setLevel(10)
+        player:spawnTrust(xi.magic.spell.SHANTOTTO)
+        xi.test.world:skipTime(1)
+        assert(#player:getPartyWithTrusts() == 2, 'trust was not summoned')
+
+        local bot = inviteBot('Trustbot')
+        assert(bot:getPartySize() == 2, 'bot did not join a party with a trust')
+        assert(#player:getPartyWithTrusts() == 3, 'the trust left when the bot joined')
+    end)
+
+    it('turns down an invite while a real player of that level is seeking a party', function()
+        player:setLevel(10)
+        local seeker = xi.test.world:spawnPlayer({ zone = zoneId, level = 11 })
+        seeker.actions:setSeekingParty(true)
+        xi.test.world:skipTime(1)
+
+        local bot = inviteBot('Seekbot')
+        assert(bot:getPartySize() == 1, 'bot joined while a real player was seeking')
+        assert(tellsFrom('Seekbot') == 1, 'bot did not point at the seeker')
+
+        seeker:setLevel(40)
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        assert(bot:getPartySize() == 2, 'a seeker of another level kept the bot out')
+    end)
+
+    it('runs to a far leader instead of appearing next to it', function()
+        player:setLevel(10)
+        local bot = inviteBot('Runbot')
+        assert(bot:getPartySize() == 2, 'bot did not join')
+
+        local start = bot:getPos()
+        player.entities:moveTo('Fungus_Beetle')
+        local far = utils.distance(start, player:getPos())
+        assert(far > 50, string.format('test needs a leader over 50 yalms away (%.1f)', far))
+
+        xi.test.world:skipTime(1)
+        local gap = utils.distance(bot:getPos(), player:getPos())
+        assert(gap > 30, string.format('bot covered %.1f yalms in a second', far - gap))
     end)
 
     it('answers a tell a moment later', function()

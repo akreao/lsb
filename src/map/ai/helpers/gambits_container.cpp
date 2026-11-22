@@ -1206,6 +1206,11 @@ auto CGambitsContainer::CheckTrigger(const CBattleEntity* triggerTarget, const G
                 predicateResults.push_back((m_host->GambitTopEnmity()) ? m_host->GambitTopEnmity()->targid != POwner->targid : false);
                 continue;
             }
+            case G_CONDITION::SHOULD_TAKE_HATE:
+            {
+                predicateResults.push_back(m_host->GambitShouldTakeHate());
+                continue;
+            }
             case G_CONDITION::SC_AVAILABLE:
             {
                 auto* PSCEffect = triggerTarget->StatusEffectContainer->GetStatusEffect(xi::StatusEffect::Skillchain);

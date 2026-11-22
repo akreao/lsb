@@ -105,6 +105,7 @@ enum class G_CONDITION : uint16
     JA_ON_COOLDOWN     = 37,
     VAL_URIEL_CHECK    = 38,
     TIMER              = 39, // condition_arg in seconds
+    SHOULD_TAKE_HATE   = 40, // custom: asks the host (player bots), see IGambitsHost::GambitShouldTakeHate
 };
 
 enum class G_REACTION : uint16

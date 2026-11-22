@@ -42,9 +42,16 @@ local lines =
         'Looks like your party is full.',
     },
 
-    refuse_trusts =
+    refuse_bots =
     {
-        'Happy to join once your trusts are gone.',
+        'Looks like you\'ve got plenty of help already.',
+        'Sorry, I\'d rather party with a few more people.',
+    },
+
+    refuse_seeker =
+    {
+        'There\'s someone here looking for a party, ask them first!',
+        'Sorry, I think someone nearby is looking for a group. Try them?',
     },
 
     refuse_alliance =

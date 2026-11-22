@@ -55,6 +55,7 @@ public:
     void setSeekingParty(bool enabled) const;
     void blacklistAdd(CLuaBaseEntity* player) const;
     void setLevelSync(CLuaBaseEntity* player) const;
+    void setPartyLeader(CLuaBaseEntity* player) const;
     void tradeNpc(const sol::object& npcQuery, const sol::table& items, sol::optional<sol::table> expectedEvent) const;
     void tradeRequest(CLuaBaseEntity* target) const;
     void tradeAccept() const;
