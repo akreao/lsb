@@ -366,6 +366,19 @@ auto CLuaZone::getGroundHeight(const float x, const float top, const float z, co
     return sol::nullopt;
 }
 
+auto CLuaZone::getNavMeshHeight(const float x, const float y, const float z) -> sol::optional<float>
+{
+    // The navmesh floor nearest the point, if one lies straight under or over it.
+    position_t pos{ x, y, z, 0, 0 };
+    m_pLuaZone->navMesh()->snapToValidPosition(pos);
+    if (::distance(pos, position_t{ x, y, z, 0, 0 }, true) > 0.1f)
+    {
+        return sol::nullopt;
+    }
+
+    return pos.y;
+}
+
 auto CLuaZone::getBots() -> sol::table
 {
     auto table = lua.create_table();
@@ -523,6 +536,7 @@ void CLuaZone::Register()
     SOL_REGISTER("getBotEntrances", CLuaZone::getBotEntrances);
     SOL_REGISTER("getBotScatterPoint", CLuaZone::getBotScatterPoint);
     SOL_REGISTER("getGroundHeight", CLuaZone::getGroundHeight);
+    SOL_REGISTER("getNavMeshHeight", CLuaZone::getNavMeshHeight);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

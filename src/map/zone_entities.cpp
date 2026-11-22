@@ -2152,10 +2152,10 @@ auto CZoneEntities::botTick(CCharEntity* PBot, timer::time_point tick) -> Task<v
 
     co_await PBot->PAI->Tick(tick);
 
-    // Paths follow the navmesh, which is not quite the floor; keep the bot's feet on the ground after it moves.
+    // A path's height runs straight between its corners; keep the bot's feet on the floor it walks on.
     if (PBot->loc.p.x != before.x || PBot->loc.p.z != before.z)
     {
-        botutils::SnapToGround(m_zone, PBot->loc.p, before.y);
+        botutils::StandOnGround(m_zone, PBot->loc.p);
     }
 
     if (PBot->PTreasurePool)

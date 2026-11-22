@@ -78,6 +78,7 @@ public:
     auto getBotEntrances() -> sol::table;
     auto getBotScatterPoint() -> sol::optional<sol::table>;
     auto getGroundHeight(float x, float top, float z, float bottom) -> sol::optional<float>;
+    auto getNavMeshHeight(float x, float y, float z) -> sol::optional<float>;
 
     auto getSoloBattleMusic();
     auto getPartyBattleMusic();

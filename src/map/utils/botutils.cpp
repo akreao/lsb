@@ -592,21 +592,74 @@ auto GroundBelow(CZone* PZone, const position_t& pos, const float top, const flo
     return top + hit->fraction * (bottom - top);
 }
 
-void SnapToGround(CZone* PZone, position_t& pos, const float lastGroundY)
+auto GroundAbove(CZone* PZone, const position_t& pos, const float top, const float bottom) -> Maybe<float>
 {
-    // Paths only bend where they turn, so between two corners the path height is a straight line that can cut
-    // through a hill or float over a dip. Look from a little above the higher of the path height and the ground the
-    // bot last stood on, down to a little below the lower one, and stand on the first floor found.
-    constexpr float Above = 3.0f;
-    constexpr float Below = 4.0f;
-
-    const float top    = std::min(pos.y, lastGroundY) - Above;
-    const float bottom = std::max(pos.y, lastGroundY) + Below;
-
-    // No floor in that span (off the collision mesh): keep the navmesh height.
-    if (const auto ground = GroundBelow(PZone, pos, top, bottom))
+    if (PZone == nullptr || PZone->xiMesh() == nullptr || bottom <= top)
     {
-        pos.y = *ground;
+        return std::nullopt;
+    }
+
+    // The same ray cast upward, from bottom to top: the first face it meets is the lowest one in the span.
+    const auto hit = PZone->xiMesh()->getPositionInfo(Vector3{ pos.x, bottom, pos.z }, YOffsets{ 0.0f, top - bottom });
+    if (!hit.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return bottom + hit->fraction * (top - bottom);
+}
+
+void StandOnGround(CZone* PZone, position_t& pos)
+{
+    if (PZone == nullptr)
+    {
+        return;
+    }
+
+    // The height comes from the navmesh, the floor a player can walk on, never from the bare collision mesh (whose
+    // first face under a point can be a rock, a roof or a canopy). A path point lies over the navmesh floor it was
+    // built on, and its height runs straight between two corners; the navmesh poly straight over or under it nearest
+    // that height is the floor there, so the bot follows each slope and keeps to its own level of a bridge or a ledge.
+    // A point off the navmesh (a zone line's landing spot, a leader standing where the navmesh does not reach) slides
+    // onto a floor close by, or keeps its place when the nearest one is far.
+    constexpr float StepSlack        = 0.1f;
+    constexpr float MaxSnap          = 3.0f;
+    constexpr float NavFloorError    = 1.2f;
+    constexpr float NavFloorFallback = 2.5f;
+    if (auto* PNavMesh = PZone->navMesh())
+    {
+        position_t snapped = pos;
+        PNavMesh->snapToValidPosition(snapped);
+
+        const float slide = ::distance(snapped, pos, true);
+        if (slide <= StepSlack)
+        {
+            pos.y = snapped.y;
+        }
+        else if (slide <= MaxSnap)
+        {
+            pos.x = snapped.x;
+            pos.y = snapped.y;
+            pos.z = snapped.z;
+        }
+    }
+
+    // The navmesh is the floor to within its build error (a cell height up, a detail error of a yalm either way). Stand
+    // on the collision face nearest to it, as a player's client stands its own character: the first face below within
+    // that error, else the lowest above. A face further off is another floor (a ledge below, a rock or a roof above).
+    if (const auto below = GroundBelow(PZone, pos, pos.y, pos.y + NavFloorError))
+    {
+        pos.y = *below;
+    }
+    else if (const auto above = GroundAbove(PZone, pos, pos.y - NavFloorError, pos.y))
+    {
+        pos.y = *above;
+    }
+    else if (const auto further = GroundBelow(PZone, pos, pos.y, pos.y + NavFloorFallback))
+    {
+        // Where the navmesh drifts further from the floor (a coarse detail mesh over rough ground) the floor is the
+        // next face down: a player's client would stand the bot there anyway.
+        pos.y = *further;
     }
 }
 
@@ -949,7 +1002,7 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     PRaw->bazaar.message = settings::get<std::string>("map.PLAYER_BOTS_CHECK_NOTE");
 
     PRaw->loc.p = spec.pos;
-    SnapToGround(PZone, PRaw->loc.p, PRaw->loc.p.y);
+    StandOnGround(PZone, PRaw->loc.p);
     PRaw->loc.destination = PZone->GetID();
     PRaw->status          = xi::Status::Normal;
     PRaw->animation       = xi::Animation::None;

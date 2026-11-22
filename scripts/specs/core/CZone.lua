@@ -211,6 +211,15 @@ end
 function CZone:getGroundHeight(x, top, z, bottom)
 end
 
+-- The height of the navmesh floor nearest x, y, z, if one lies straight under or over the point.
+---@nodiscard
+---@param x number
+---@param y number
+---@param z number
+---@return number?
+function CZone:getNavMeshHeight(x, y, z)
+end
+
 ---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()

@@ -33,6 +33,7 @@ struct PathResult
 {
     std::vector<pathpoint_t> points;
     bool                     isPartial{ false };
+    bool                     climbsLink{ false }; // an off-mesh link on the way rises more than a step
 };
 
 using AvoidLinks = xi::Flag<struct AvoidLinksTag>;

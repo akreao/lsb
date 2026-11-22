@@ -33,8 +33,18 @@
 #include <map/navmesh/navmesh.h>
 #include <map/zone.h>
 
+#include <algorithm>
+
 namespace pathfind
 {
+
+namespace
+{
+
+// The radius of the sphere a player's client sweeps against the zone (retail FUN_10167b10).
+constexpr float kPcBodyRadius = 0.5f;
+
+} // namespace
 
 EntityPathOwner::EntityPathOwner(CBaseEntity* entity)
 : entity_(entity)
@@ -133,6 +143,13 @@ auto EntityPathOwner::id() const -> uint32
 
 auto EntityPathOwner::hitboxRadius() const -> float
 {
+    // A PC has no model hitbox; give it the 0.5 yalm body a player's client collides with, so its paths keep off rocks
+    // and trees as a mob's do.
+    if (isPlayerCharacter())
+    {
+        return std::max(entity_->modelHitboxSize * 0.5f, kPcBodyRadius);
+    }
+
     return entity_->modelHitboxSize * 0.5f;
 }
 

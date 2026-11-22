@@ -55,6 +55,31 @@ constexpr float kYalmsPerSecondPerSpeed = 1.0f / 17.0f;
 // pathing at the mob rate plays its walk motion and falls behind real players).
 constexpr float kPcRunYalmsPerSecondPerSpeed = 0.1f;
 
+// A rise steeper than this over one leg is a ledge, not a slope: the navmesh walks nothing steeper than 46 degrees and
+// steps up at most a yalm.
+constexpr float kLedgeRise = 1.0f;
+
+// Cuts a path short where a leg climbs a ledge. The corridor holds no uphill link, but an end point that is off the
+// corridor (the nearest navmesh point to an off-mesh destination, such as a spawn point on a ledge) is joined to it by
+// a straight line. FFXI y grows downward, so a rise is a drop in y.
+auto cutAtLedge(position_t from, std::vector<pathpoint_t>& points) -> bool
+{
+    for (std::size_t i = 0; i < points.size(); ++i)
+    {
+        const auto& to   = points[i].position;
+        const float rise = from.y - to.y;
+        if (rise > kLedgeRise && rise > distance(from, to, true))
+        {
+            points.resize(i);
+            return true;
+        }
+
+        from = to;
+    }
+
+    return false;
+}
+
 } // namespace
 
 CPathFind::CPathFind(CBaseEntity* PTarget)
@@ -448,10 +473,36 @@ auto CPathFind::FindPathInternal(const position_t& start, const position_t& end)
     }
 
     // links are for chasing only
-    const auto avoidLinks = AvoidLinks{ roamRegion_ != nullptr && !recoveringToRegion_ };
+    // A PC (a player bot) moves by a player's rules: it never climbs a ledge, but may step off one when no walk gets there.
+    const bool isPC       = owner_->isPlayerCharacter();
+    const auto avoidLinks = AvoidLinks{ (roamRegion_ != nullptr && !recoveringToRegion_) || isPC };
 
     const pathfind::NavPathBuilder builder{ navMesh() };
     auto                           built = builder.findPath(start, end, owner_->hitboxRadius(), avoidLinks);
+    if (!built && isPC)
+    {
+        built = builder.findPath(start, end, owner_->hitboxRadius(), AvoidLinks::No);
+        if (built && built->climbsLink)
+        {
+            built.reset();
+        }
+    }
+
+    // A straight leg can still climb where an end point off the corridor is joined on. Measure from the navmesh floor
+    // under the start, not the collision floor a bot stands on a little below it.
+    if (built && isPC)
+    {
+        auto navStart = start;
+        navMesh().snapToValidPosition(navStart);
+        if (cutAtLedge(navStart, built->points))
+        {
+            built->isPartial = true;
+            if (built->points.empty())
+            {
+                built.reset();
+            }
+        }
+    }
 
     if (!built)
     {

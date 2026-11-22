@@ -887,6 +887,45 @@ describe('Player bots', function()
         assert(worst < 0.5, string.format('bot was up to %.2f yalms off the floor', worst))
     end)
 
+    it('never climbs a ledge, as a player cannot', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 0)
+        local zone = assert(player:getZone())
+        local bots = {}
+        for i = 1, 4 do
+            bots[i] = assert(zone:spawnBot({
+                name  = 'Climber' .. string.char(96 + i),
+                job   = xi.job.WAR,
+                level = 10,
+                x     = player:getXPos() + i,
+                y     = player:getYPos(),
+                z     = player:getZPos(),
+                gear  = { [xi.slot.MAIN] = xi.item.BRONZE_SWORD },
+            }))
+        end
+
+        -- West Ronfaure has ledges that the navmesh links for chasing mobs. Measure on the navmesh floor, which slopes
+        -- 46 degrees at most where it can be walked. Down is +y, so a rise is a drop in y.
+        local climbs, last = {}, {}
+        for _ = 1, 450 do
+            xi.test.world:skipTime(1)
+            for i, bot in ipairs(bots) do
+                local x, z = bot:getXPos(), bot:getZPos()
+                local here = { x = x, y = zone:getNavMeshHeight(x, bot:getYPos(), z), z = z }
+                if last[i] and last[i].y and here.y then
+                    local flat = math.sqrt((here.x - last[i].x) ^ 2 + (here.z - last[i].z) ^ 2)
+                    local rise = last[i].y - here.y
+                    if rise > 1.0 and rise > flat * 1.2 then
+                        table.insert(climbs, string.format('%s rose %.1f over %.1f at (%.1f, %.1f, %.1f)', bot:getName(), rise, flat, here.x, here.y, here.z))
+                    end
+                end
+
+                last[i] = here
+            end
+        end
+
+        assert(#climbs == 0, 'bots climbed ledges: ' .. table.concat(climbs, '; ', 1, math.min(#climbs, 5)))
+    end)
+
     it('stands on the ground, not above it', function()
         local bot = assert(zoneSpawnAt('Groundbot', player:getXPos() + 1, player:getYPos() - 1.5, player:getZPos()))
         xi.test.world:skipTime(1)

@@ -72,6 +72,9 @@ constexpr float smallPolyPickExt[3] = { 0.5f, 1.0f, 0.5f };
 constexpr float polyPickExt[3]      = { 2.5f, 5.0f, 2.5f };
 constexpr float largePolyPickExt[3] = { 30.0f, 60.0f, 30.0f };
 
+// A link that rises more than this climbs a ledge (the build's agentMaxClimb: smaller steps are walked in-mesh).
+constexpr float kLinkClimb = 1.0f;
+
 struct NavMeshSetHeader
 {
     int             magic;
@@ -369,6 +372,18 @@ auto DetourNavMesh::findPath(const position_t& start, const position_t& end, con
 
     const bool detourPartial = (status & DT_PARTIAL_RESULT) != 0;
 
+    // Off-mesh links are two-way: one taken from its low end climbs a ledge. Detour space is Y up.
+    bool climbsLink = false;
+    for (int32 i = 1; i < pathPolyCount && !climbsLink; ++i)
+    {
+        float linkStart[3];
+        float linkEnd[3];
+        if (dtStatusSucceed(navMesh_->getOffMeshConnectionPolyEndPoints(navMeshQueryPolyData_[i - 1], navMeshQueryPolyData_[i], linkStart, linkEnd)))
+        {
+            climbsLink = linkEnd[1] - linkStart[1] > kLinkClimb;
+        }
+    }
+
     if (pathPolyCount <= 0)
     {
         ShowError("DetourNavMesh::findPath Unable to generate polys for path (%f, %f, %f)->(%f, %f, %f) (%u)",
@@ -443,7 +458,7 @@ auto DetourNavMesh::findPath(const position_t& start, const position_t& end, con
         });
     }
 
-    return PathResult{ std::move(outPoints), isPartial };
+    return PathResult{ std::move(outPoints), isPartial, climbsLink };
 }
 
 auto DetourNavMesh::findRandomPosition(const position_t& start, float maxRadius) const -> Maybe<position_t>

@@ -104,10 +104,9 @@ auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&;
 // or nothing. Down is +y, so top < bottom.
 auto GroundBelow(CZone* PZone, const position_t& pos, float top, float bottom) -> Maybe<float>;
 
-// Puts the position on the zone's floor near both its path height and lastGroundY (where the bot last stood), as
-// a player's own client does. Other clients draw a PC at the y it is given, and path heights between corners can
-// be yalms off the floor. Keeps the path height when no floor is found.
-void SnapToGround(CZone* PZone, position_t& pos, float lastGroundY);
+// Puts a bot's position on the floor a player could stand on there: the navmesh floor straight over or under it
+// nearest its height (a point off the navmesh slides onto a floor close by), then the collision face nearest that.
+void StandOnGround(CZone* PZone, position_t& pos);
 
 // True when the bot may pick a fight: hunting is allowed in the zone (not a starting zone on
 // map.PLAYER_BOTS_NO_HUNT_ZONES, fewer than 3 real players of the zone's level there), and the zone has fewer
