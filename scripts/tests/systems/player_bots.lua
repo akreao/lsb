@@ -646,7 +646,10 @@ describe('Player bots', function()
 
         local cancelled = false
         for _, incoming in ipairs(player.packets:getIncoming()) do
-            if incoming.type == 0x022 and packetReader.readU32(incoming.data, 0x08) == 1 then
+            if
+                incoming.type == 0x022 and
+                packetReader.readU32(incoming.data, 0x08) == 1
+            then
                 cancelled = true
             end
         end
