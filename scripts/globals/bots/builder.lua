@@ -324,7 +324,7 @@ xi.bots.spawn = function(zone, pos, overrides)
         z        = pos.z,
         rot      = pos.rot or math.random(0, 255),
         gear     = overrides.gear or xi.bots.varyGear(job, level, xi.bots.gearFor(job, level)),
-        seeking  = math.random(1, 3) == 1, -- about a third look for a party
+        seeking  = math.random(1, 100) <= (xi.settings.map.PLAYER_BOTS_SEEKING_PERCENT or 100),
     }
 
     if overrides.seeking ~= nil then

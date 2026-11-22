@@ -48,6 +48,11 @@ end
 function CheckDatabaseForBots()
 end
 
+---Rewrites the /sea list of player bots (player_bots_search) now and returns the rows written.
+---@return integer
+function RefreshBotSearchList()
+end
+
 ---True when the mob script for the zone and mob name calls xi.mob.phOnDespawn (an NM placeholder).
 ---@param zoneName string
 ---@param mobName string

@@ -32,6 +32,13 @@ local lines =
         'Thanks, but we\'re too far apart in level.',
     },
 
+    refuse_far =
+    {
+        function(bot)
+            return string.format('Thanks! I\'m out in %s though. Come find me there!', (bot:getZoneName():gsub('_', ' ')))
+        end,
+    },
+
     refuse_busy =
     {
         'Sorry, I\'m already in a party.',

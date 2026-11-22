@@ -926,6 +926,47 @@ describe('Player bots', function()
         assert(#climbs == 0, 'bots climbed ledges: ' .. table.concat(climbs, '; ', 1, math.min(#climbs, 5)))
     end)
 
+    it('shows the seeking party flag by the seeking share setting', function()
+        local zone = assert(player:getZone())
+        local pos  = { x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() }
+
+        local seeker = assert(xi.bots.spawn(zone, pos))
+        xi.test.world:setSetting('map.PLAYER_BOTS_SEEKING_PERCENT', 0)
+        local loner = assert(xi.bots.spawn(zone, pos))
+        xi.test.world:skipTime(1)
+
+        assert(seeker:isSeekingParty(), 'a bot at the default share of 100 is not seeking a party')
+        assert(not loner:isSeekingParty(), 'a bot at a share of 0 is seeking a party')
+    end)
+
+    it('lists every live bot for /sea, and writes nothing else', function()
+        local writesBefore = GetBotDatabaseWrites()
+        assert(spawnBot('Searchbota'))
+        assert(spawnBot('Searchbotb'))
+
+        assert(RefreshBotSearchList() == 2, 'the /sea list does not hold the two bots')
+        ResetBots()
+        assert(RefreshBotSearchList() == 0, 'the /sea list still holds bots after they left')
+        assert(GetBotDatabaseWrites() == writesBefore, 'the /sea list counted as a bot database write')
+        assert(CheckDatabaseForBots() == 0, 'a bot row reached a char table')
+    end)
+
+    it('turns down a /sea invite from another zone and says where it is', function()
+        player:setLevel(10)
+        xi.test.world:spawnPlayer({ zone = xi.zone.EAST_RONFAURE })
+        local there = assert(GetZone(xi.zone.EAST_RONFAURE))
+        local bot   = assert(there:spawnBot({ name = 'Farbot', job = xi.job.WAR, level = 10, x = 0, y = 0, z = 0 }))
+
+        -- An invite from the /sea list carries the character id only (no target index).
+        local packet = ffi.new('uint8_t[12]')
+        ffi.cast('uint32_t*', packet + 0x04)[0] = bot:getID()
+        player.packets:send(0x06E, packet, ffi.sizeof(packet))
+        waitForAnswer()
+
+        assert(bot:getPartySize() == 1, 'a bot in another zone joined the party')
+        assert(tellsFrom('Farbot') == 1, 'the bot did not say where it is')
+    end)
+
     it('stands on the ground, not above it', function()
         local bot = assert(zoneSpawnAt('Groundbot', player:getXPos() + 1, player:getYPos() - 1.5, player:getZPos()))
         xi.test.world:skipTime(1)
@@ -1352,7 +1393,7 @@ describe('Player bots', function()
         xi.test.world:setSetting('map.PLAYER_BOTS_STAY_MAX', 120)
     end)
 
-    it('aims for fewer bots in a city', function()
+    it('aims for the city bot count setting', function()
         -- Only the zone's id and type are read; the test world does not load cities.
         local city =
         {
@@ -1364,9 +1405,16 @@ describe('Player bots', function()
                 return xi.zoneType.CITY
             end,
         }
-        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 12)
+        local cityCount = xi.settings.map.PLAYER_BOTS_CITY_COUNT
+        xi.settings.map.PLAYER_BOTS_CITY_COUNT = { 3, 5 }
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 20)
         local target = xi.bots.targetCount(city)
-        assert(target >= 4 and target <= 6, string.format('a city aims for %d bots', target))
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 4)
+        local capped = xi.bots.targetCount(city)
+        xi.settings.map.PLAYER_BOTS_CITY_COUNT = cityCount
+
+        assert(target >= 3 and target <= 5, string.format('a city aims for %d bots, wanted 3 to 5', target))
+        assert(capped <= 4, string.format('a city aims for %d bots over the zone cap of 4', capped))
     end)
 
     it('swaps only head or body pieces the job can wear', function()

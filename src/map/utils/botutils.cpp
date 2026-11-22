@@ -59,8 +59,10 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <cstring>
 #include <fstream>
 #include <iterator>
+#include <stdexcept>
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
@@ -206,6 +208,9 @@ auto newBotId() -> uint32
     return id;
 }
 
+// The /sea list of bots (sql/player_bots_search.sql).
+constexpr std::string_view SearchTable = "player_bots_search";
+
 auto isWrite(const std::string_view query) -> bool
 {
     const auto start = query.find_first_not_of(" \t\r\n(");
@@ -233,7 +238,8 @@ auto isWrite(const std::string_view query) -> bool
 // can fall in the bot range by chance, so blocking here could lose a real player's data.
 void watchStatement(const db::Query query, const std::vector<db::BoundValue>& params)
 {
-    if (!isWrite(query.view()))
+    // The /sea list is the one table that holds bots, by design.
+    if (!isWrite(query.view()) || query.view().find(SearchTable) != std::string_view::npos)
     {
         return;
     }
@@ -479,6 +485,100 @@ void DailyDatabaseCheck(const timer::time_point tick)
 
     next        = tick + 24h;
     std::ignore = CheckDatabaseForBots();
+}
+
+auto RefreshSearchList() -> uint32
+{
+    // A database without the table (not updated since bots came in) logs once and is left alone.
+    static bool missing = false;
+    if (missing)
+    {
+        return 0;
+    }
+
+    std::vector<CCharEntity*> bots;
+    if (settings::get<bool>("map.PLAYER_BOTS_ENABLED"))
+    {
+        zoneutils::ForEachZone(
+            [&](CZone* PZone)
+            {
+                if (PZone->GetBotCount() != 0)
+                {
+                    PZone->ForEachBot(
+                        [&](CCharEntity* PBot)
+                        {
+                            bots.push_back(PBot);
+                        });
+                }
+            });
+    }
+
+    // An empty list stays empty: no writes on a server that never had bots, or once they are gone.
+    static bool empty = false;
+    if (bots.empty() && empty)
+    {
+        return 0;
+    }
+
+    const bool done = db::transaction(
+        [&]()
+        {
+            if (!db::preparedStmt("DELETE FROM player_bots_search"))
+            {
+                throw std::runtime_error("player_bots_search");
+            }
+
+            for (const auto* PBot : bots)
+            {
+                uint32 settingsInt = 0;
+                std::memcpy(&settingsInt, &PBot->playerConfig, sizeof(uint32));
+
+                const auto  nation = static_cast<uint8>(PBot->profile.nation);
+                const uint8 rank   = nation < 3 ? PBot->profile.rank[nation] : 0;
+                auto*       PParty = PBot->PParty;
+                const auto* PLead  = PParty != nullptr ? PParty->GetLeader() : nullptr;
+
+                db::preparedStmt("INSERT INTO player_bots_search (charid, charname, partyid, pos_zone, nation, `rank`, race, mjob, sjob, mlvl, slvl, settings) "
+                                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                 PBot->id,
+                                 PBot->getName(),
+                                 PLead != nullptr ? PLead->id : 0,
+                                 static_cast<uint16>(PBot->getZone()),
+                                 nation,
+                                 rank,
+                                 static_cast<uint8>(PBot->look.race),
+                                 static_cast<uint8>(PBot->GetMJob()),
+                                 static_cast<uint8>(PBot->GetSJob()),
+                                 PBot->GetMLevel(),
+                                 PBot->GetSLevel(),
+                                 settingsInt);
+            }
+        });
+
+    if (!done)
+    {
+        missing = true;
+        ShowWarning("Player bots: could not write player_bots_search (run dbtool update); bots stay out of /sea");
+        return 0;
+    }
+
+    empty = bots.empty();
+
+    return static_cast<uint32>(bots.size());
+}
+
+void SearchListTick(const timer::time_point tick)
+{
+    // Every zone ticks this; the list is rewritten for all of them at most this often.
+    constexpr auto Interval = 10s;
+    static auto    next     = timer::time_point{};
+    if (tick < next)
+    {
+        return;
+    }
+
+    next        = tick + Interval;
+    std::ignore = RefreshSearchList();
 }
 
 void Despawn(CCharEntity* PBot)
@@ -1174,6 +1274,35 @@ auto FindBotByName(const std::string& name) -> CCharEntity*
                 [&](CCharEntity* PBot)
                 {
                     if (PFound == nullptr && strcmpi(PBot->getName().c_str(), name.c_str()) == 0)
+                    {
+                        PFound = PBot;
+                    }
+                });
+        });
+
+    return PFound;
+}
+
+auto FindBotById(const uint32 id) -> CCharEntity*
+{
+    if (!IsBotId(id) || !liveBotSpecs.contains(id))
+    {
+        return nullptr;
+    }
+
+    CCharEntity* PFound = nullptr;
+    zoneutils::ForEachZone(
+        [&](CZone* PZone)
+        {
+            if (PFound != nullptr || PZone->GetBotCount() == 0)
+            {
+                return;
+            }
+
+            PZone->ForEachBot(
+                [&](CCharEntity* PBot)
+                {
+                    if (PBot->id == id)
                     {
                         PFound = PBot;
                     }

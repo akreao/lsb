@@ -321,11 +321,20 @@ xi.settings.map =
     -- Seconds a dead bot stays down (so it can be raised) before it comes back at a zone entrance.
     PLAYER_BOTS_RAISE_WAIT = 180,
 
-    -- Most bots in one zone. Cities aim for 4 to 6, outdoor zones 6 to 10, dungeons 4 to 8, under this cap.
-    PLAYER_BOTS_MAX_PER_ZONE = 12,
+    -- Most bots in one zone, whatever the zone kind below asks for.
+    PLAYER_BOTS_MAX_PER_ZONE = 20,
 
-    -- Most bots on the whole map process, whatever the zones want.
-    PLAYER_BOTS_MAX_TOTAL = 60,
+    -- Most bots on the whole map process, whatever the zones want. 200 bots cost about 2 ms per 400 ms zone tick
+    -- and 11 MB in all (measured 2026-11-22).
+    PLAYER_BOTS_MAX_TOTAL = 200,
+
+    -- How many bots a zone aims for, by kind (lowest, highest; each zone picks once at random), under the caps above.
+    PLAYER_BOTS_CITY_COUNT     = { 8, 14 },
+    PLAYER_BOTS_OUTDOORS_COUNT = { 8, 14 },
+    PLAYER_BOTS_DUNGEON_COUNT  = { 6, 10 },
+
+    -- Percent of bots that show the "seeking party" flag (and list as seeking in /sea) while on their own.
+    PLAYER_BOTS_SEEKING_PERCENT = 100,
 
     -- A bot plays for this many minutes (picked at random between the two) and logs out once it is alone and not
     -- fighting; a new one comes in its place. Party bots stay while their party lasts.

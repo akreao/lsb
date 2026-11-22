@@ -2377,6 +2377,9 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
         DespawnAllBots();
     }
 
+    // The /sea list of bots, emptied once bots are turned off.
+    botutils::SearchListTick(tick);
+
     // Bots arrive while the zone has real players and leave a while after the last one goes.
     if (settings::get<bool>("map.PLAYER_BOTS_ENABLED"))
     {

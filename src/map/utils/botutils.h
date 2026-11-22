@@ -91,6 +91,13 @@ auto CheckDatabaseForBots() -> uint32;
 // Runs CheckDatabaseForBots once a day while bots are on (called from the zone tick; cheap when not due).
 void DailyDatabaseCheck(timer::time_point tick);
 
+// Rewrites player_bots_search (the /sea list of bots) with every live bot, or none while bots are off. Returns the
+// rows written.
+auto RefreshSearchList() -> uint32;
+
+// Calls RefreshSearchList every 10 seconds (called from every zone tick; cheap when not due).
+void SearchListTick(timer::time_point tick);
+
 // Forgets a despawned bot: frees its name and drops its saved spec.
 void Release(uint32 botId, const std::string& name);
 
@@ -166,6 +173,9 @@ void FollowLeader(CCharEntity* PBot, CCharEntity* PLeader);
 
 // The live bot with this name (case does not matter), or nullptr.
 auto FindBotByName(const std::string& name) -> CCharEntity*;
+
+// The live bot with this id anywhere on the map process, or nullptr.
+auto FindBotById(uint32 id) -> CCharEntity*;
 
 // A player sent the bot a tell; the bot answers with a canned line a moment later.
 void OnTell(CCharEntity* PBot, CCharEntity* PSender);

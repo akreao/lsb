@@ -104,6 +104,7 @@ class CDataLoader
 {
 public:
     auto GetPlayersCount(const SearchRequest& sr) const -> uint32;
+    auto GetBotsCount(uint8 jobid) const -> uint32;
     auto GetAHItemHistory(uint16 ItemID, bool stack) const -> std::vector<AuctionHouseHistory>;
     auto GetPartyList(uint32 PartyID, uint32 AllianceID) const -> std::vector<SearchEntity>;
     auto GetLinkshellList(uint32 LinkshellID) const -> std::vector<SearchEntity>;

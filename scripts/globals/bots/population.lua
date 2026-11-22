@@ -9,13 +9,17 @@ require('scripts/globals/bots/builder')
 xi = xi or {}
 xi.bots = xi.bots or {}
 
--- Bots a zone aims for, by kind of zone; picked once per zone so the count stays steady.
-local targetRanges =
-{
-    { xi.zoneType.CITY,     4,  6 },
-    { xi.zoneType.OUTDOORS, 6, 10 },
-    { xi.zoneType.DUNGEON,  4,  8 },
-}
+-- Bots a zone aims for, by kind of zone (settings). Each zone draws its place in the range once, so its count stays
+-- steady and follows the setting when it changes.
+local function targetRanges()
+    local settings = xi.settings.map
+    return
+    {
+        { xi.zoneType.CITY,     settings.PLAYER_BOTS_CITY_COUNT or { 8, 14 } },
+        { xi.zoneType.OUTDOORS, settings.PLAYER_BOTS_OUTDOORS_COUNT or { 8, 14 } },
+        { xi.zoneType.DUNGEON,  settings.PLAYER_BOTS_DUNGEON_COUNT or { 6, 10 } },
+    }
+end
 
 local zoneTargets = {}
 
@@ -58,20 +62,20 @@ end
 
 xi.bots.targetCount = function(zone)
     local zoneId = zone:getID()
-    if not zoneTargets[zoneId] then
-        local mask = zone:getTypeMask()
-        local target = 0
-        for _, range in ipairs(targetRanges) do
-            if hasFlag(mask, range[1]) then
-                target = math.random(range[2], range[3])
-                break
-            end
-        end
+    zoneTargets[zoneId] = zoneTargets[zoneId] or math.randomFloat(0, 1)
 
-        zoneTargets[zoneId] = target
+    local mask   = zone:getTypeMask()
+    local target = 0
+    for _, range in ipairs(targetRanges()) do
+        if hasFlag(mask, range[1]) then
+            local low  = range[2][1] or 0
+            local high = math.max(range[2][2] or low, low)
+            target     = math.min(low + math.floor(zoneTargets[zoneId] * (high - low + 1)), high)
+            break
+        end
     end
 
-    return math.min(zoneTargets[zoneId], xi.settings.map.PLAYER_BOTS_MAX_PER_ZONE or 12)
+    return math.min(target, xi.settings.map.PLAYER_BOTS_MAX_PER_ZONE or 20)
 end
 
 -- Real players a zone counts for bots: GM-hidden ones do not.

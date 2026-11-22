@@ -326,6 +326,7 @@ void init(IPP mapIPP, bool isRunningInCI)
     lua.set_function("GetBotDatabaseWrites", &botutils::GetBotDatabaseWrites);
     lua.set_function("ResetBots", &botutils::ResetForTests);
     lua.set_function("CheckDatabaseForBots", &botutils::CheckDatabaseForBots);
+    lua.set_function("RefreshBotSearchList", &botutils::RefreshSearchList);
     lua.set_function("IsBotPlaceholderScript", &botutils::IsPlaceholderScript);
     lua.set_function("CanBotWear", &botutils::CanWear);
     lua.set_function("GetBotList", &luautils::GetBotList);

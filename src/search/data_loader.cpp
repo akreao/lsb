@@ -324,6 +324,24 @@ auto CDataLoader::GetAHItemFromItemID(uint16 ItemID) const -> AuctionHouseItem
 
 /************************************************************************
  *                                                                       *
+ *  Player bots (custom): the map server lists them in                   *
+ *  player_bots_search. A database without that table has no bots.       *
+ *                                                                       *
+ ************************************************************************/
+
+auto CDataLoader::GetBotsCount(const uint8 jobid) const -> uint32
+{
+    auto rset = db::preparedStmt("SELECT COUNT(*) AS n FROM player_bots_search WHERE (? = 0 OR mjob = ?)", jobid, jobid);
+    FOR_DB_SINGLE_RESULT(rset)
+    {
+        return rset->get<uint32>("n");
+    }
+
+    return 0;
+}
+
+/************************************************************************
+ *                                                                       *
  *  Returns the number of active players in the world.                   *
  *                                                                       *
  ************************************************************************/
@@ -336,7 +354,7 @@ auto CDataLoader::GetPlayersCount(const SearchRequest& sr) const -> uint32
         auto rset = db::preparedStmt("SELECT COUNT(*) FROM accounts_sessions LEFT JOIN char_stats USING (charid) WHERE mjob = ?", jobid);
         FOR_DB_SINGLE_RESULT(rset)
         {
-            return rset->get<uint32>("COUNT(*)");
+            return rset->get<uint32>("COUNT(*)") + GetBotsCount(jobid);
         }
     }
     else
@@ -344,7 +362,7 @@ auto CDataLoader::GetPlayersCount(const SearchRequest& sr) const -> uint32
         auto rset = db::preparedStmt("SELECT COUNT(*) FROM accounts_sessions");
         FOR_DB_SINGLE_RESULT(rset)
         {
-            return rset->get<uint32>("COUNT(*)");
+            return rset->get<uint32>("COUNT(*)") + GetBotsCount(0);
         }
     }
     return 0;
@@ -391,6 +409,28 @@ auto CDataLoader::GetPlayersList(SearchRequest sr, int* count) const -> std::vec
         "AND (? = 0 OR mjob = ?) "
         "AND (? = 0 OR (seacom_type & 0xF0) = ?) "
         "ORDER BY charname ASC");
+    // Player bots (custom) list beside real players; they have no comment, so a comment search skips them.
+    constexpr auto everyoneAndBots = db::Query(
+        "SELECT charid, partyid, charname, pos_zone, pos_prevzone, nation, rank_sandoria, rank_bastok, unity_leader, "
+        "rank_windurst, race, mjob, sjob, mlvl, slvl, languages, settings, seacom_type, disconnecting, gmHiddenEnabled, muted, "
+        "linkshellid1, linkshellid2 "
+        "FROM accounts_sessions "
+        "LEFT JOIN accounts_parties USING (charid) "
+        "LEFT JOIN chars USING (charid) "
+        "LEFT JOIN char_look USING (charid) "
+        "LEFT JOIN char_stats USING (charid) "
+        "LEFT JOIN char_profile USING(charid) "
+        "LEFT JOIN char_flags USING(charid) "
+        "WHERE charname IS NOT NULL "
+        "AND (? = 0 OR mjob = ?) "
+        "AND (? = 0 OR (seacom_type & 0xF0) = ?) "
+        "UNION ALL "
+        "SELECT charid, partyid, charname, pos_zone, 0, nation, `rank`, `rank`, 0, "
+        "`rank`, race, mjob, sjob, mlvl, slvl, 0, settings, 0, 0, 0, 0, "
+        "0, 0 "
+        "FROM player_bots_search "
+        "WHERE (? = 0 OR mjob = ?) AND ? = 0 "
+        "ORDER BY charname ASC");
     constexpr auto byIds = db::Query(
         "SELECT charid, partyid, charname, pos_zone, pos_prevzone, nation, rank_sandoria, rank_bastok, unity_leader, "
         "rank_windurst, race, mjob, sjob, mlvl, slvl, languages, settings, seacom_type, disconnecting, gmHiddenEnabled, muted, "
@@ -409,9 +449,22 @@ auto CDataLoader::GetPlayersList(SearchRequest sr, int* count) const -> std::vec
         "ORDER BY charname ASC");
 
     // The second statement's ids are still bound as a JSON array for JSON_TABLE.
-    const auto rset = ids.empty()
-                          ? db::preparedStmt(everyone, sr.jobid, sr.jobid, sr.commentType, sr.commentType)
-                          : db::preparedStmt(byIds, fmt::format("[{}]", fmt::join(ids, ",")), sr.jobid, sr.jobid, sr.commentType, sr.commentType);
+    // Friend lists and name lists hold real characters only. Bots join a general search; without the bot table
+    // (a database not updated since bots came in) the search runs without them.
+    std::unique_ptr<db::ResultSet> rset;
+    if (!ids.empty())
+    {
+        rset = db::preparedStmt(byIds, fmt::format("[{}]", fmt::join(ids, ",")), sr.jobid, sr.jobid, sr.commentType, sr.commentType);
+    }
+    else if (!sr.requestListOnly)
+    {
+        rset = db::preparedStmt(everyoneAndBots, sr.jobid, sr.jobid, sr.commentType, sr.commentType, sr.jobid, sr.jobid, sr.commentType);
+    }
+
+    if (rset == nullptr && ids.empty())
+    {
+        rset = db::preparedStmt(everyone, sr.jobid, sr.jobid, sr.commentType, sr.commentType);
+    }
     if (rset && rset->rowsCount())
     {
         while (rset->next())

@@ -96,6 +96,12 @@ void GP_CLI_COMMAND_GROUP_SOLICIT_REQ::process(MapSession* PSession, CCharEntity
                     PInvitee = zoneutils::GetChar(inviteeCharId);
                 }
 
+                // A bot invited from /sea (no target index) can be in any zone; bots are not in the char lists.
+                if (PInvitee == nullptr)
+                {
+                    PInvitee = botutils::FindBotById(inviteeCharId);
+                }
+
                 if (PInvitee && PInvitee->isBot())
                 {
                     // A player bot has no client to answer; it decides on its own a moment later.

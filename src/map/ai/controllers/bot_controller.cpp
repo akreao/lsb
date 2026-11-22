@@ -443,8 +443,16 @@ void CBotController::DecideInvite()
     PBot->InvitePending.clean();
 
     auto* PInviter = zoneutils::GetChar(inviterId);
-    if (PInviter == nullptr || PInviter->loc.zone != PBot->loc.zone || PBot->isDead())
+    if (PInviter == nullptr || PBot->isDead())
     {
+        return;
+    }
+
+    // Invited from /sea by someone in another zone: a bot cannot cross the world, so it says where it is.
+    if (PInviter->loc.zone != PBot->loc.zone)
+    {
+        PInviter->pushPacket<GP_SERV_COMMAND_MESSAGE>(PInviter, 0, 0, MsgStd::InvitationDeclined);
+        botutils::Chat(PBot, "refuse_far", botutils::ChatChannel::Tell, PInviter);
         return;
     }
 
