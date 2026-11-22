@@ -171,6 +171,10 @@ xi.player.onGameIn = function(player, firstLogin, zoning)
         if firstLogin then
             xi.player.charCreate(player)
         end
+
+        if xi.bots and xi.bots.loginNotice then
+            xi.bots.loginNotice(player)
+        end
     else
         -- things checked ONLY during zone in go here
         if

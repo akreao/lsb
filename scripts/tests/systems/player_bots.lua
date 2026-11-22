@@ -813,6 +813,47 @@ describe('Player bots', function()
         assert(countIncoming(0x00D, other:getID()) > 0, 'the real player was not drawn while bots held every slot')
     end)
 
+    -- The text of every 0x017 chat line the player got, joined.
+    local function chatText()
+        local lines = {}
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x017 then
+                local chars = {}
+                for i = 0x17, packet.size - 1 do
+                    local byte = packet.data[i]
+                    if byte == 0 then
+                        break
+                    end
+
+                    chars[#chars + 1] = string.char(byte)
+                end
+
+                lines[#lines + 1] = table.concat(chars)
+            end
+        end
+
+        return table.concat(lines, '\n')
+    end
+
+    it('tells a player at login that the server has AI adventurers, only while bots are on', function()
+        player.packets:clear()
+        xi.player.onGameIn(player, false, false)
+        local text = chatText()
+        assert(text:find('This server has AI adventurers.', 1, true), 'no login notice: ' .. text)
+        assert(text:find('Type !bots off to hide them, or !bots on to show them again.', 1, true), 'notice lacks the commands')
+
+        xi.test.world:setSetting('map.PLAYER_BOTS_ENABLED', false)
+        player.packets:clear()
+        xi.player.onGameIn(player, false, false)
+        assert(not chatText():find('AI adventurers', 1, true), 'login notice sent with bots off')
+
+        -- Zoning is not a login.
+        xi.test.world:setSetting('map.PLAYER_BOTS_ENABLED', true)
+        player.packets:clear()
+        xi.player.onGameIn(player, false, true)
+        assert(not chatText():find('AI adventurers', 1, true), 'login notice sent on a zone change')
+    end)
+
     it('fights with its fists when it has no weapon, as a character does', function()
         -- Without the unarmed pseudo-weapon the first auto-attack built no swing and read past the end of the round.
         local zone = assert(player:getZone())

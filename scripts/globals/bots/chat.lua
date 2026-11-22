@@ -259,3 +259,14 @@ xi.bots.resetChat = function()
     lastSaid = {}
     lineUsed = {}
 end
+
+-- The one line every character gets at login while bots are on, so players know who the AI adventurers are and
+-- how to hide them. Sent to players who hid bots too: it reminds them how to show them again.
+xi.bots.loginNotice = function(player)
+    if not xi.settings.map.PLAYER_BOTS_ENABLED then
+        return
+    end
+
+    player:printToPlayer('This server has AI adventurers. Their /check comment says "AI adventurer". ' ..
+        'Type !bots off to hide them, or !bots on to show them again.')
+end
