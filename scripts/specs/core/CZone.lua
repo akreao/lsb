@@ -195,6 +195,16 @@ end
 function CZone:getBotEntrances()
 end
 
+-- The height of the first floor (collision mesh) a ray meets going down from top to bottom at x, z. Down is +y.
+---@nodiscard
+---@param x number
+---@param top number
+---@param z number
+---@param bottom number
+---@return number?
+function CZone:getGroundHeight(x, top, z, bottom)
+end
+
 ---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()

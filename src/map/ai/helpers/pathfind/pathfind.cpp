@@ -51,6 +51,10 @@ constexpr int kRecoveryPointAttempts = 8;
 // entity speed to yalms per second
 constexpr float kYalmsPerSecondPerSpeed = 1.0f / 17.0f;
 
+// A PC runs at a tenth of its speed in yalms per second, the rate the client expects for its run motion (a bot
+// pathing at the mob rate plays its walk motion and falls behind real players).
+constexpr float kPcRunYalmsPerSecondPerSpeed = 0.1f;
+
 } // namespace
 
 CPathFind::CPathFind(CBaseEntity* PTarget)
@@ -410,7 +414,8 @@ auto CPathFind::StepBudget() const -> float
         return static_cast<float>(baseSpeed);
     }();
 
-    return speed * kYalmsPerSecondPerSpeed * std::chrono::duration<float>(kLogicUpdateInterval).count();
+    const float rate = (pathFlags_ & PATHFLAG_RUN) != 0 && owner_->isPlayerCharacter() ? kPcRunYalmsPerSecondPerSpeed : kYalmsPerSecondPerSpeed;
+    return speed * rate * std::chrono::duration<float>(kLogicUpdateInterval).count();
 }
 
 auto CPathFind::StepToInternal(const position_t& pos, bool run, float stopShort) -> void

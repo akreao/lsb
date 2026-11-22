@@ -27,6 +27,7 @@
 #include "entities/char_entity.h"
 #include "entities/trust_entity.h"
 #include "enums/party_kind.h"
+#include "utils/botutils.h"
 #include "utils/zoneutils.h"
 
 GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool loadTrust)
@@ -73,6 +74,21 @@ GP_SERV_COMMAND_GROUP_TBL::GP_SERV_COMMAND_GROUP_TBL(CParty* PParty, const bool 
             packet.GroupTbl[i].unknown06         = (partyFlags >> 6) & 0x01; // Bit 6
             packet.GroupTbl[i].unknown07         = (partyFlags >> 7) & 0x01; // Bit 7
             packet.GroupTbl[i].ZoneNo            = pos_zone ? pos_zone : rset->get<uint16>("pos_prevzone");
+            i++;
+        }
+
+        // Player bots are party members in memory only (no accounts_parties row); they follow the real members.
+        for (const auto* PMember : PParty->members)
+        {
+            if (!botutils::IsBot(PMember) || i >= std::size(packet.GroupTbl))
+            {
+                continue;
+            }
+
+            packet.GroupTbl[i].UniqueNo = PMember->id;
+            packet.GroupTbl[i].ActIndex = PMember->targid;
+            packet.GroupTbl[i].PartyNo  = 0;
+            packet.GroupTbl[i].ZoneNo   = static_cast<uint16>(PMember->getZone());
             i++;
         }
 

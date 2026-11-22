@@ -345,6 +345,17 @@ auto CLuaZone::getBotEntrances() -> sol::table
     return table;
 }
 
+auto CLuaZone::getGroundHeight(const float x, const float top, const float z, const float bottom) -> sol::optional<float>
+{
+    const position_t pos{ x, top, z, 0, 0 };
+    if (const auto ground = botutils::GroundBelow(m_pLuaZone, pos, top, bottom))
+    {
+        return *ground;
+    }
+
+    return sol::nullopt;
+}
+
 auto CLuaZone::getBots() -> sol::table
 {
     auto table = lua.create_table();
@@ -500,6 +511,7 @@ void CLuaZone::Register()
     SOL_REGISTER("getBotCount", CLuaZone::getBotCount);
     SOL_REGISTER("getBots", CLuaZone::getBots);
     SOL_REGISTER("getBotEntrances", CLuaZone::getBotEntrances);
+    SOL_REGISTER("getGroundHeight", CLuaZone::getGroundHeight);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

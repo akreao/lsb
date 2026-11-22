@@ -82,6 +82,11 @@ auto EntityPathOwner::isMobEntity() const -> bool
     return dynamic_cast<CMobEntity*>(entity_) != nullptr;
 }
 
+auto EntityPathOwner::isPlayerCharacter() const -> bool
+{
+    return entity_->objtype == TYPE_PC;
+}
+
 auto EntityPathOwner::isRoaming() const -> bool
 {
     return entity_->PAI->IsRoaming();

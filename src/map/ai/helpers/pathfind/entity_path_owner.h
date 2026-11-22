@@ -41,6 +41,7 @@ public:
     auto baseSpeed() const -> uint8 override;
     auto updateSpeed(bool run) -> uint8 override;
     auto isMobEntity() const -> bool override;
+    auto isPlayerCharacter() const -> bool override;
     auto isRoaming() const -> bool override;
     auto inWater() const -> bool override;
 

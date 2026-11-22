@@ -62,6 +62,12 @@ public:
     virtual auto id() const -> uint32               = 0; // diagnostics
 
     virtual auto hitboxRadius() const -> float = 0; // half the mob's hitbox
+
+    // A PC (a player bot): a run path moves it at the client's PC run rate, not the mob rate.
+    virtual auto isPlayerCharacter() const -> bool
+    {
+        return false;
+    }
 };
 
 } // namespace pathfind

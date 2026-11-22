@@ -112,8 +112,17 @@ private:
 
     auto FindPrey() -> CMobEntity*;
 
-    // Moves the bot's home: near a real player when nobody can see it, otherwise somewhere nearby (custom).
-    void Rehome(timer::time_point tick);
+    // Picks the next stop of the bot's wander across the zone and starts walking there; false when none was found.
+    auto StartJourney() -> bool;
+
+    // How long the bot waits at a stop.
+    auto StopTime() const -> timer::duration;
+
+    // The nearest mob fighting the bot, or nullptr.
+    auto Attacker() const -> CBattleEntity*;
+
+    // True when a real player is this close to the bot.
+    auto PlayerWithin(float range) const -> bool;
     auto ShouldRest() const -> bool;
     auto IsResting() const -> bool;
     void StartResting();
@@ -130,7 +139,9 @@ private:
     bool              m_hunting{ false };
     timer::time_point m_nextHuntCheck{};
     timer::time_point m_nextRoam{};
-    timer::time_point m_nextRehome{};
+    timer::time_point m_stopUntil{};    // when the bot leaves its current stop
+    timer::time_point m_crowdedSince{}; // when a real player came right up to the waiting bot
+    timer::time_point m_nextAttackerCheck{};
     timer::time_point m_deathTime{};
 
     timer::time_point m_inviteAt{};

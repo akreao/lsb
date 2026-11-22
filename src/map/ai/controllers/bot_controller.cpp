@@ -35,6 +35,7 @@
 #include "entities/mob_entity.h"
 #include "enums/msg_std.h"
 #include "mob_spell_container.h"
+#include "navmesh/navmesh.h"
 #include "packets/s2c/0x009_message.h"
 #include "party.h"
 #include "spell.h"
@@ -46,6 +47,8 @@
 #include "weapon_skill.h"
 #include "zone.h"
 
+#include <limits>
+
 namespace
 {
 
@@ -53,13 +56,19 @@ namespace
 constexpr float PreySearchRange = 40.0f;
 constexpr float EngageRange     = 20.0f;
 constexpr float CasterRange     = 10.0f;
-constexpr float RoamRadius      = 20.0f;
 
-// A bot no real player can see (the client draws other characters within 45 yalms) heads toward one now and then,
-// ending up this far from them: close enough to be seen, not on top of them.
-constexpr float SeenRange    = 45.0f;
-constexpr float RehomeMinGap = 15.0f;
-constexpr float RehomeMaxGap = 35.0f;
+// A solo bot wanders the zone in legs: it runs to a stop this far away anywhere in the zone, waits there a while,
+// then picks the next one. It never seeks players out, and a player who stays next to a waiting bot sees it move
+// on, so bots pass people by chance rather than gather around them (custom).
+constexpr float JourneyMin       = 60.0f;
+constexpr float JourneyMax       = 150.0f;
+constexpr float CrowdRange       = 15.0f;
+constexpr auto  CrowdPatience    = 30s;
+constexpr float StopWanderRadius = 6.0f;
+
+// Near a real player a bot looks for prey only one check in this many (it still never takes a player's mob).
+constexpr float NearPlayerRange    = 40.0f;
+constexpr int   NearPlayerHuntOdds = 3;
 
 // In a party: how close the bot keeps to its leader, and how far it runs to join a fight.
 constexpr float FollowDistance = 3.0f;
@@ -111,7 +120,7 @@ CBotController::CBotController(CCharEntity* PBot)
 , m_spells(std::make_unique<CMobSpellContainer>(PBot))
 , m_gambits(std::make_unique<gambits::CGambitsContainer>(PBot, this))
 , m_home(PBot->loc.p)
-, m_nextRehome(timer::now() + std::chrono::seconds(xirand::GetRandomNumber(2, 8)))
+, m_stopUntil(timer::now() + std::chrono::seconds(xirand::GetRandomNumber(5, 20)))
 , m_lastLevel(PBot->GetMLevel())
 {
     RefreshSkills();
@@ -364,6 +373,22 @@ auto CBotController::Tick(const timer::time_point tick) -> Task<void>
 
     m_deathTime = {};
 
+    // Attacked first (aggro, or a mob that hit it while it walked or rested): fight back.
+    if (!PBot->PAI->IsEngaged() && !isBusy(PBot) && tick >= m_nextAttackerCheck)
+    {
+        m_nextAttackerCheck = tick + 1s;
+        if (auto* PAttacker = Attacker())
+        {
+            if (IsResting())
+            {
+                StopResting();
+            }
+
+            PBot->PAI->PathFind->Clear();
+            Engage(PAttacker->entityId());
+        }
+    }
+
     if (PBot->PAI->IsEngaged())
     {
         co_await CombatTick(tick);
@@ -544,6 +569,7 @@ void CBotController::BackToSolo()
     m_farSince        = {};
     m_home            = PBot->loc.p;
     m_nextHuntCheck   = timer::now() + 10s;
+    m_stopUntil       = timer::now() + std::chrono::seconds(xirand::GetRandomNumber(10, 30));
 
     // Bots that were looking for a party when they arrived look again.
     if (const auto* PSpec = botutils::GetSpec(PBot->id); PSpec && PSpec->seeking && !PBot->playerConfig.InviteFlg)
@@ -601,7 +627,7 @@ auto CBotController::PartyTick(const timer::time_point tick) -> Task<void>
     const float range = ::distance(PBot->loc.p, PLeader->loc.p);
     if (range > FollowDistance && !isBusy(PBot))
     {
-        if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PLeader->loc.p) > 2.0f)
+        if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PLeader->loc.p) > FollowDistance + 2.0f)
         {
             // No path at all (the leader stands off the navmesh): warping is the only way there.
             if (!PBot->PAI->PathFind->PathAround(PLeader->loc.p, FollowDistance, PATHFLAG_RUN))
@@ -684,7 +710,7 @@ auto CBotController::CombatTick(const timer::time_point tick) -> Task<void>
         const float distance = ::distance(PBot->loc.p, PTarget->loc.p);
         if (distance > range)
         {
-            if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PTarget->loc.p) > 2.0f)
+            if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PTarget->loc.p) > range + 2.0f)
             {
                 PBot->PAI->PathFind->PathAround(PTarget->loc.p, std::max(range - 1.0f, 1.0f), PATHFLAG_RUN);
             }
@@ -752,7 +778,7 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
         }
         else
         {
-            if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PMob->loc.p) > 3.0f)
+            if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PMob->loc.p) > EngageRange)
             {
                 PBot->PAI->PathFind->PathInRange(PMob->loc.p, EngageRange - 2.0f, PATHFLAG_RUN);
             }
@@ -764,9 +790,10 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
 
     if (tick >= m_nextHuntCheck)
     {
-        m_nextHuntCheck = tick + 5s;
-        m_hunting       = false;
-        if (botutils::MayHunt(PBot))
+        m_nextHuntCheck       = tick + 5s;
+        m_hunting             = false;
+        const bool nearPlayer = PlayerWithin(NearPlayerRange);
+        if (botutils::MayHunt(PBot) && (!nearPlayer || xirand::GetRandomNumber(NearPlayerHuntOdds) == 0))
         {
             if (auto* PMob = FindPrey())
             {
@@ -777,15 +804,40 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
         }
     }
 
-    if (tick >= m_nextRehome)
+    // On the way to the next stop.
+    if (PBot->PAI->PathFind->IsFollowingPath())
     {
-        Rehome(tick);
+        PBot->PAI->PathFind->FollowPath(tick);
+        co_return;
     }
 
-    if (!PBot->PAI->PathFind->IsFollowingPath() && tick >= m_nextRoam)
+    // At a stop: a real player lingering right next to it makes it move on early.
+    if (PlayerWithin(CrowdRange))
     {
-        m_nextRoam = tick + std::chrono::seconds(xirand::GetRandomNumber(10, 30));
-        PBot->PAI->PathFind->RoamAround(m_home, RoamRadius, 1, 3);
+        if (m_crowdedSince == timer::time_point{})
+        {
+            m_crowdedSince = tick;
+        }
+        else if (tick - m_crowdedSince >= CrowdPatience)
+        {
+            m_stopUntil = tick;
+        }
+    }
+    else
+    {
+        m_crowdedSince = {};
+    }
+
+    if (tick >= m_stopUntil)
+    {
+        m_crowdedSince = {};
+        m_stopUntil    = tick + (StartJourney() ? StopTime() : 10s);
+    }
+    else if (tick >= m_nextRoam)
+    {
+        // Shuffle about a little while waiting, as people do.
+        m_nextRoam = tick + std::chrono::seconds(xirand::GetRandomNumber(15, 40));
+        PBot->PAI->PathFind->RoamAround(m_home, StopWanderRadius, 1, 2);
     }
 
     PBot->PAI->PathFind->FollowPath(tick);
@@ -793,52 +845,99 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
     co_return;
 }
 
-void CBotController::Rehome(const timer::time_point tick)
+auto CBotController::Attacker() const -> CBattleEntity*
 {
-    m_nextRehome = tick + std::chrono::seconds(xirand::GetRandomNumber(30, 90));
-
     if (PBot->loc.zone == nullptr)
     {
-        return;
+        return nullptr;
     }
 
-    std::vector<CCharEntity*> players;
-    bool                      seen = false;
-    PBot->loc.zone->ForEachChar(
-        [&](CCharEntity* PChar)
+    // Mobs fighting the bot need not be in its notoriety list (that is filled for some kinds of hate only), so look
+    // at who the mobs are fighting.
+    CBattleEntity* PNearest = nullptr;
+    float          nearest  = std::numeric_limits<float>::max();
+    PBot->loc.zone->ForEachMob(
+        [&](CMobEntity* PMob)
         {
-            if (PChar->status == xi::Status::Disappear || PChar->m_isGMHidden)
+            if (PMob->isDead() || PMob->GetBattleTarget() != PBot)
             {
                 return;
             }
 
-            players.push_back(PChar);
-            seen = seen || ::distance(PChar->loc.p, PBot->loc.p) < SeenRange;
+            if (const float range = ::distance(PMob->loc.p, PBot->loc.p); range < nearest)
+            {
+                PNearest = PMob;
+                nearest  = range;
+            }
         });
 
-    if (players.empty())
+    return PNearest;
+}
+
+auto CBotController::PlayerWithin(const float range) const -> bool
+{
+    return std::ranges::any_of(botutils::RealPlayers(PBot->loc.zone), [&](const CCharEntity* PChar)
+                               {
+                                   return ::distance(PChar->loc.p, PBot->loc.p) < range;
+                               });
+}
+
+auto CBotController::StopTime() const -> timer::duration
+{
+    // Cities are for standing about; out in the field bots keep moving.
+    const bool city = PBot->loc.zone != nullptr && (PBot->loc.zone->GetTypeMask() & xi::ZoneType::City) != xi::ZoneType::Unknown;
+    return city ? std::chrono::seconds(xirand::GetRandomNumber(60, 300)) : std::chrono::seconds(xirand::GetRandomNumber(20, 90));
+}
+
+auto CBotController::StartJourney() -> bool
+{
+    auto* PZone = PBot->loc.zone;
+    if (PZone == nullptr || PZone->navMesh() == nullptr)
     {
-        return;
+        return false;
     }
 
-    // Already where people can see it: stroll somewhere else nearby, so the area looks busy and it never stands still long.
-    if (seen)
+    // Outdoors, half the time the next stop is a camp of mobs the bot's level (where a player would go to fight).
+    std::vector<position_t> camps;
+    if ((PZone->GetTypeMask() & xi::ZoneType::City) == xi::ZoneType::Unknown && xirand::GetRandomNumber(2) == 0)
     {
-        if (PBot->PAI->PathFind->RoamAround(PBot->loc.p, RoamRadius * 4, 1, 3))
+        PZone->ForEachMob(
+            [&](CMobEntity* PMob)
+            {
+                const float range = ::distance(PBot->loc.p, PMob->m_SpawnPoint);
+                const auto  check = charutils::CheckMob(PBot->GetMLevel(), PMob);
+                if (range >= JourneyMin && range <= JourneyMax && check >= EMobDifficulty::EasyPrey && check <= EMobDifficulty::EvenMatch)
+                {
+                    camps.push_back(PMob->m_SpawnPoint);
+                }
+            });
+    }
+
+    for (int attempt = 0; attempt < 8; ++attempt)
+    {
+        Maybe<position_t> stop;
+        if (!camps.empty())
         {
-            m_home = PBot->PAI->PathFind->GetDestination();
+            stop = camps[xirand::GetRandomNumber(camps.size())];
+        }
+        else
+        {
+            stop = PZone->navMesh()->findRandomPosition(PBot->loc.p, JourneyMax);
         }
 
-        return;
+        if (!stop.has_value() || ::distance(PBot->loc.p, *stop) < JourneyMin * (camps.empty() ? 0.5f : 1.0f))
+        {
+            continue;
+        }
+
+        if (PBot->PAI->PathFind->PathTo(*stop, PATHFLAG_RUN))
+        {
+            m_home = *stop;
+            return true;
+        }
     }
 
-    const auto* PPlayer = players[xirand::GetRandomNumber(players.size())];
-    const float gap     = xirand::GetRandomNumber(RehomeMinGap, RehomeMaxGap);
-    if (PBot->PAI->PathFind->PathAround(PPlayer->loc.p, gap))
-    {
-        m_home     = PPlayer->loc.p;
-        m_nextRoam = tick + std::chrono::seconds(xirand::GetRandomNumber(20, 40));
-    }
+    return false;
 }
 
 auto CBotController::FindPrey() -> CMobEntity*

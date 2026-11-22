@@ -507,21 +507,38 @@ auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&
     return entrances;
 }
 
-void SnapToGround(CZone* PZone, position_t& pos)
+auto GroundBelow(CZone* PZone, const position_t& pos, const float top, const float bottom) -> Maybe<float>
 {
-    if (PZone == nullptr || PZone->xiMesh() == nullptr)
+    if (PZone == nullptr || PZone->xiMesh() == nullptr || bottom <= top)
     {
-        return;
+        return std::nullopt;
     }
 
-    // Down is +y. Look from a little above the feet to a few yalms below them, so a ceiling overhead is not hit.
-    constexpr float Above = 1.5f;
+    // Down is +y: the ray runs from top down to bottom and stops at the first surface (invisible walls skipped).
+    const auto hit = PZone->xiMesh()->getPositionInfo(Vector3{ pos.x, top, pos.z }, YOffsets{ 0.0f, bottom - top });
+    if (!hit.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return top + hit->fraction * (bottom - top);
+}
+
+void SnapToGround(CZone* PZone, position_t& pos, const float lastGroundY)
+{
+    // Paths only bend where they turn, so between two corners the path height is a straight line that can cut
+    // through a hill or float over a dip. Look from a little above the higher of the path height and the ground the
+    // bot last stood on, down to a little below the lower one, and stand on the first floor found.
+    constexpr float Above = 3.0f;
     constexpr float Below = 4.0f;
 
-    const auto hit = PZone->xiMesh()->getPositionInfo(Vector3{ pos.x, pos.y, pos.z }, YOffsets{ -Above, Above + Below });
-    if (hit.has_value() && !hit->barrier)
+    const float top    = std::min(pos.y, lastGroundY) - Above;
+    const float bottom = std::max(pos.y, lastGroundY) + Below;
+
+    // No floor in that span (off the collision mesh): keep the navmesh height.
+    if (const auto ground = GroundBelow(PZone, pos, top, bottom))
     {
-        pos.y = pos.y - Above + hit->fraction * (Above + Below);
+        pos.y = *ground;
     }
 }
 
@@ -851,7 +868,7 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     PRaw->playerConfig.InviteFlg = spec.seeking;
 
     PRaw->loc.p = spec.pos;
-    SnapToGround(PZone, PRaw->loc.p);
+    SnapToGround(PZone, PRaw->loc.p, PRaw->loc.p.y);
     PRaw->loc.destination = PZone->GetID();
     PRaw->status          = xi::Status::Normal;
     PRaw->animation       = xi::Animation::None;

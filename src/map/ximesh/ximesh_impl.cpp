@@ -943,10 +943,7 @@ auto XiMeshImpl::rayIntersectCellHitInfo(const Vector3& start, const Vector3& en
         const auto& [blockIdx, placementIdx] = entries_[cell.offset + ref];
         const auto& block                    = blocks_[blockIdx];
 
-        if (block.hasBarriers && ignoreTransparentBarriers)
-        {
-            continue;
-        }
+        // Invisible walls are skipped one triangle at a time below: a block with a few of them can also hold floor.
 
         const auto& place = placements_[placementIdx];
         if (yRange.min > place.yMax || yRange.max < place.yMin)
@@ -988,18 +985,26 @@ auto XiMeshImpl::rayIntersectCellHitInfo(const Vector3& start, const Vector3& en
             const auto vb   = vertexAt(block, block.indices[base + 1]);
             const auto vc   = vertexAt(block, block.indices[base + v3Off]);
 
+            const auto& meta = block.metas[triIdx];
+            if (meta.barrier != 0 && ignoreTransparentBarriers)
+            {
+                continue;
+            }
+
             const auto hitOpt = rayIntersectTriangle(va, vb, vc, oStart, oDiff);
             if (hitOpt.has_value())
             {
                 const auto intersection = hitOpt.value();
                 const auto distanceSq   = (oStart - intersection).magnitudeSquared();
-                if (!closestHit.has_value() || closestHit->distanceSq > distanceSq)
+
+                // Placements can be scaled differently, so compare hits by how far along the ray they are.
+                const auto fraction = std::sqrt(distanceSq / std::max(oDiff.magnitudeSquared(), 1e-12f));
+                if (!closestHit.has_value() || closestHit->fraction > fraction)
                 {
-                    const auto& meta = block.metas[triIdx];
-                    closestHit       = RayHitInfo{
+                    closestHit = RayHitInfo{
                         .intersection = intersection,
                         .distanceSq   = distanceSq,
-                        .fraction     = std::sqrt(distanceSq / std::max(oDiff.magnitudeSquared(), 1e-12f)),
+                        .fraction     = fraction,
                         .placement    = &place,
                         .type         = static_cast<xi::TerrainType>(meta.material),
                         .barrier      = meta.barrier != 0,

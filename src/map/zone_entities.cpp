@@ -1784,6 +1784,19 @@ void CZoneEntities::PushPacket(CBaseEntity* PEntity, GLOBAL_MESSAGE_TYPE message
                                     // Try char
                                     entity = GetCharByID(id);
 
+                                    // Player bots are PCs kept out of the char list
+                                    if (!entity)
+                                    {
+                                        for (const auto& [_, PBot] : m_botList)
+                                        {
+                                            if (PBot->id == id)
+                                            {
+                                                entity = PBot.get();
+                                                break;
+                                            }
+                                        }
+                                    }
+
                                     // Try everything else
                                     if (!entity)
                                     {
@@ -2134,7 +2147,7 @@ auto CZoneEntities::botTick(CCharEntity* PBot, timer::time_point tick) -> Task<v
     // Paths follow the navmesh, which is not quite the floor; keep the bot's feet on the ground after it moves.
     if (PBot->loc.p.x != before.x || PBot->loc.p.z != before.z)
     {
-        botutils::SnapToGround(m_zone, PBot->loc.p);
+        botutils::SnapToGround(m_zone, PBot->loc.p, before.y);
     }
 
     if (PBot->PTreasurePool)

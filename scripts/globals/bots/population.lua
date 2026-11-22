@@ -63,8 +63,6 @@ xi.bots.targetCount = function(zone)
     return math.min(zoneTargets[zoneId], xi.settings.map.PLAYER_BOTS_MAX_PER_ZONE or 12)
 end
 
--- The arrival point closest to a real player, as if the bot had just zoned in there. It may be in sight (players
--- zone in at the same spots); it is never closer than arrivalClearRange, so a bot does not appear on top of someone.
 -- Real players a zone counts for bots: GM-hidden ones do not.
 xi.bots.realPlayers = function(zone)
     local players = {}
@@ -77,23 +75,32 @@ xi.bots.realPlayers = function(zone)
     return players
 end
 
+-- A random arrival point, as if the bot had just zoned in there; never closer than arrivalClearRange to a real
+-- player, so a bot does not appear on top of someone.
 local function pickArrival(zone)
     local players = xi.bots.realPlayers(zone)
-    local best, bestRange
+    local choices = {}
 
     for _, pos in ipairs(zone:getBotEntrances()) do
-        local nearest = math.huge
+        local clear = true
         for _, player in ipairs(players) do
             local there = { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }
-            nearest = math.min(nearest, utils.distance(pos, there))
+            if utils.distance(pos, there) < arrivalClearRange then
+                clear = false
+                break
+            end
         end
 
-        if nearest >= arrivalClearRange and (not bestRange or nearest < bestRange) then
-            best, bestRange = pos, nearest
+        if clear then
+            table.insert(choices, pos)
         end
     end
 
-    return best
+    if #choices == 0 then
+        return nil
+    end
+
+    return choices[math.random(1, #choices)]
 end
 
 xi.bots.populate = function(zone)

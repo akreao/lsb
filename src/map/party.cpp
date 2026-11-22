@@ -950,18 +950,6 @@ void CParty::ReloadParty()
                 if (PPartyMember)
                 {
                     PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PPartyMember, j, memberinfo.flags, PChar->getZone());
-
-                    // Inject the party leader's trusts into the party list
-                    CBattleEntity* PLeader = GetLeader();
-                    if (PLeader != nullptr)
-                    {
-                        for (auto* PTrust : static_cast<CCharEntity*>(PLeader)->PTrusts)
-                        {
-                            j++;
-                            // trusts don't persist over zonelines, so we know their zone has be the same as the leader.
-                            PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PTrust, j);
-                        }
-                    }
                 }
                 else
                 {
@@ -969,6 +957,18 @@ void CParty::ReloadParty()
                     PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(memberinfo.id, memberinfo.name, memberinfo.flags, j, zoneid);
                 }
                 j++;
+            }
+
+            // The leader's trusts come last, in the order GROUP_TBL lists them (after any player bots, which are
+            // local members too: injecting them after each local member listed them more than once).
+            if (PLeader != nullptr)
+            {
+                for (auto* PTrust : static_cast<CCharEntity*>(PLeader)->PTrusts)
+                {
+                    // trusts don't persist over zonelines, so we know their zone has be the same as the leader.
+                    PChar->pushPacket<GP_SERV_COMMAND_GROUP_LIST>(PTrust, j);
+                    j++;
+                }
             }
         }
     }

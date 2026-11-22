@@ -534,6 +534,29 @@ describe('Player bots', function()
         assert(bots[1]:getPartySize() == 1, 'bot is still in the party after waiting')
     end)
 
+    it('shows in the party window', function()
+        player:setLevel(10)
+        local bot = inviteBot('Listbot')
+        assert(bot:getPartySize() == 2, 'bot did not join')
+
+        player.packets:clear()
+        player.actions:inviteToParty(assert(spawnBot('Listbot2')))
+        waitForAnswer()
+
+        local listed = false
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x0C8 then
+                for i = 0, 19 do
+                    if packetReader.readU32(packet.data, 0x08 + 12 * i) == bot:getID() then
+                        listed = true
+                    end
+                end
+            end
+        end
+
+        assert(listed, 'party table (0x0C8) has no entry for the bot')
+    end)
+
     it('passes every item in the party treasure pool', function()
         player:setLevel(10)
         local bot = inviteBot('Lootbot')
@@ -744,30 +767,79 @@ describe('Player bots', function()
         assert(countIncoming(0x00D, other:getID()) > 0, 'the real player was not drawn while bots held every slot')
     end)
 
-    it('heads toward real players when none can see it', function()
-        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 0)
-        local here = { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }
+    it('fights back when a mob attacks it, where players can see the swings', function()
+        local mob = assert(player.entities:moveTo('Fungus_Beetle'))
+        mob:setLevelRange(10, 10)
+        mob:respawn()
+        local bot = assert(zoneSpawnAt('Fightbot', mob:getXPos() + 1, mob:getYPos(), mob:getZPos()))
+        bot:setLevel(10)
+        player.packets:clear()
 
-        -- Somewhere on the navmesh well out of draw range: a mob's spot 60 to 120 yalms away.
-        local spot
-        for _, mob in ipairs(assert(player:getZone()):getMobs()) do
-            local there = { x = mob:getXPos(), y = mob:getYPos(), z = mob:getZPos() }
-            local range = utils.distance(here, there)
-            if not spot and mob:isSpawned() and range > 60 and range < 120 then
-                spot = there
+        mob:updateEnmity(bot)
+        for _ = 1, 10 do
+            xi.test.world:skipTime(1)
+        end
+
+        assert(bot:isEngaged(), 'bot did not fight back')
+        local actions = 0
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x028 and packetReader.readU32(packet.data, 0x05) == bot:getID() then
+                actions = actions + 1
             end
         end
 
-        assert(spot, 'no spot 60 to 120 yalms from the player')
-        local bot = assert(xi.bots.spawn(assert(player:getZone()), spot, { name = 'Drifter', job = xi.job.WAR, level = 10 }))
+        assert(actions > 0, 'player saw none of the bot\'s actions')
+    end)
 
-        local closest = math.huge
-        for _ = 1, 90 do
+    it('runs to its leader as fast as a player runs', function()
+        player:setLevel(10)
+        local bot = inviteBot('Sprinter')
+        assert(bot:getPartySize() == 2, 'bot did not join')
+
+        player.entities:moveTo('Fungus_Beetle')
+        local before = utils.distance(bot:getPos(), player:getPos())
+        for _ = 1, 10 do
             xi.test.world:skipTime(1)
-            closest = math.min(closest, utils.distance(here, { x = bot:getXPos(), y = bot:getYPos(), z = bot:getZPos() }))
         end
 
-        assert(closest < 45, string.format('bot stayed %d yalms away, out of draw range', math.floor(closest)))
+        -- The test world runs one 400 ms zone tick per step. A PC at the base speed of 50 runs 5 yalms a second
+        -- (2 a tick); the old mob rate gave about 1.2 a tick.
+        local covered = before - utils.distance(bot:getPos(), player:getPos())
+        assert(covered > 16, string.format('bot closed %.1f yalms in 10 ticks', covered))
+    end)
+
+    it('wanders off on its own instead of hanging around a player', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 0)
+        local bot = assert(spawnBot('Wanderer'))
+
+        for _ = 1, 120 do
+            xi.test.world:skipTime(1)
+        end
+
+        local gap = utils.distance(player:getPos(), bot:getPos())
+        assert(gap > 20, string.format('bot is still %.1f yalms from the player after two minutes', gap))
+    end)
+
+    it('keeps its feet on the ground over hills', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 0)
+        local zone = assert(player:getZone())
+        local bot = assert(spawnBot('Hillbot'))
+
+        local worst, samples = 0, 0
+        for _ = 1, 120 do
+            xi.test.world:skipTime(1)
+            local y = bot:getYPos()
+            -- The floor straight below a point above the bot: a buried bot is under it, a floating one above it
+            -- (from 3 yalms up, so a tree or ledge overhead is not taken for the floor).
+            local ground = zone:getGroundHeight(bot:getXPos(), y - 3, bot:getZPos(), y + 10)
+            if ground then
+                worst = math.max(worst, math.abs(ground - y))
+                samples = samples + 1
+            end
+        end
+
+        assert(samples > 100, string.format('only %d of 120 points had a floor', samples))
+        assert(worst < 0.5, string.format('bot was up to %.2f yalms off the floor', worst))
     end)
 
     it('stands on the ground, not above it', function()
@@ -932,7 +1004,10 @@ describe('Player bots', function()
         local bot = spawnHunter('Yieldbot', mob)
         for _ = 1, 20 do
             xi.test.world:skipTime(1)
-            assert(not bot:isEngaged(), 'bot hunted with three fitting players in the zone')
+            -- It may still fight back against a mob that went for it first.
+            local target = bot:isEngaged() and bot:getTarget()
+            local attacked = target and target:getTarget() and target:getTarget():getID() == bot:getID()
+            assert(not bot:isEngaged() or attacked, 'bot hunted with three fitting players in the zone')
         end
     end)
 end)
