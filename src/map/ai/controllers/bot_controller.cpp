@@ -72,7 +72,11 @@ constexpr int   NearPlayerHuntOdds = 3;
 
 // In a party: how close the bot keeps to its leader, and how far it runs to join a fight.
 constexpr float FollowDistance = 3.0f;
-constexpr float AssistRange    = 30.0f;
+constexpr float FollowSlack    = 2.0f;
+
+// A party bot below this much MP rests on its own between fights.
+constexpr uint8 PartyRestMPP = 30;
+constexpr float AssistRange  = 30.0f;
 
 // A bot that stays farther than AssistRange from its leader this long (no way through) leaves the party.
 constexpr auto ReachTimeout = 60s;
@@ -604,12 +608,14 @@ auto CBotController::PartyTick(const timer::time_point tick) -> Task<void>
         }
     }
 
-    // Rest when the leader rests.
+    // Rest when the leader rests, and on its own between fights when it runs low on MP (a healer or caster that
+    // never rested would soon have nothing left to cast).
     const bool leaderResting = PLeader->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Healing);
     const bool full          = PBot->GetHPP() >= 100 && (PBot->GetMaxMP() == 0 || PBot->GetMPP() >= 100);
+    const bool lowMP         = PBot->GetMaxMP() > 0 && PBot->GetMPP() < PartyRestMPP;
     if (IsResting())
     {
-        if (full || !leaderResting)
+        if (full || (!leaderResting && !m_restingForMP))
         {
             StopResting();
         }
@@ -617,15 +623,18 @@ auto CBotController::PartyTick(const timer::time_point tick) -> Task<void>
         co_return;
     }
 
-    if (leaderResting && !full && !isBusy(PBot))
+    if ((leaderResting || lowMP) && !full && !isBusy(PBot))
     {
         StartResting();
+        m_restingForMP = !leaderResting;
         co_return;
     }
 
     // Follow the leader, keeping a little space: run there at any distance, as a player would.
+    // A path around the leader stops a little short of FollowDistance, so only start one past FollowSlack, or the
+    // bot would path again every tick and never stand still long enough to cure or buff.
     const float range = ::distance(PBot->loc.p, PLeader->loc.p);
-    if (range > FollowDistance && !isBusy(PBot))
+    if (range > FollowDistance + FollowSlack && !isBusy(PBot))
     {
         if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PLeader->loc.p) > FollowDistance + 2.0f)
         {

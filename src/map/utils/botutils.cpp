@@ -882,6 +882,18 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     {
         liveBotNames.insert(spec.name);
         liveBotSpecs[PInserted->id] = spec;
+
+        // Every way a bot comes in (arrival, respawn, following its leader) gets its job's gambits here: spells,
+        // cures and abilities all go through them.
+        if (const auto applyGambits = lua["xi"]["bots"]["applyGambits"]; applyGambits.valid())
+        {
+            const auto result = applyGambits.get<sol::protected_function>()(CLuaBaseEntity(PInserted));
+            if (!result.valid())
+            {
+                const sol::error err = result;
+                ShowErrorFmt("botutils::SpawnBot: gambits for {}: {}", spec.name, err.what());
+            }
+        }
     }
 
     return PInserted;

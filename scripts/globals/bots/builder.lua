@@ -285,9 +285,9 @@ xi.bots.spawn = function(zone, pos, overrides)
     -- A random name can clash with a character or a live bot; try a few.
     for _ = 1, 10 do
         spec.name = overrides.name or xi.bots.randomName()
+        -- The map gives the new bot its gambits (xi.bots.applyGambits).
         local bot = zone:spawnBot(spec)
         if bot then
-            xi.bots.applyGambits(bot)
             return bot
         end
 

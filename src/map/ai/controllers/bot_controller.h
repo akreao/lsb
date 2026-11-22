@@ -142,6 +142,7 @@ private:
     timer::time_point m_stopUntil{};    // when the bot leaves its current stop
     timer::time_point m_crowdedSince{}; // when a real player came right up to the waiting bot
     timer::time_point m_nextAttackerCheck{};
+    bool              m_restingForMP{ false }; // a party bot resting for its own MP, not because the leader rests
     timer::time_point m_deathTime{};
 
     timer::time_point m_inviteAt{};

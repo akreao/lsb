@@ -557,6 +557,22 @@ describe('Player bots', function()
         assert(listed, 'party table (0x0C8) has no entry for the bot')
     end)
 
+    it('heals a party member as a healer', function()
+        player:setLevel(20)
+        local bot = assert(player:getZone()):spawnBot({ name = 'Healbot', job = xi.job.WHM, level = 20, x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() })
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        assert(bot:getPartySize() == 2, 'healer did not join')
+
+        player:setHP(math.floor(player:getMaxHP() / 4))
+        local before = player:getHP()
+        for _ = 1, 15 do
+            xi.test.world:skipTime(1)
+        end
+
+        assert(player:getHP() > before, 'healer bot did not cure a hurt party member')
+    end)
+
     it('passes every item in the party treasure pool', function()
         player:setLevel(10)
         local bot = inviteBot('Lootbot')
