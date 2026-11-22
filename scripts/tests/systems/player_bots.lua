@@ -783,7 +783,10 @@ describe('Player bots', function()
         assert(bot:isEngaged(), 'bot did not fight back')
         local actions = 0
         for _, packet in ipairs(player.packets:getIncoming()) do
-            if packet.type == 0x028 and packetReader.readU32(packet.data, 0x05) == bot:getID() then
+            if
+                packet.type == 0x028 and
+                packetReader.readU32(packet.data, 0x05) == bot:getID()
+            then
                 actions = actions + 1
             end
         end
