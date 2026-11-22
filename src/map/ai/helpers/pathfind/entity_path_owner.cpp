@@ -25,9 +25,11 @@
 
 #include <map/entities/base_entity.h>
 #include <map/entities/battle_entity.h>
+#include <map/entities/char_entity.h>
 #include <map/entities/mob_entity.h>
 
 #include <map/lua/luautils.h>
+#include <map/utils/botutils.h>
 
 #include "ximesh/ximesh.h"
 #include <map/navmesh/navmesh.h>
@@ -68,6 +70,13 @@ auto EntityPathOwner::navMesh() -> NavMesh&
 
 auto EntityPathOwner::markPositionDirty() -> void
 {
+    // A player bot's path height runs straight between corners. Put its feet on the floor here, before the update
+    // goes out at the end of its tick (clients draw a PC at the exact height they are sent).
+    if (entity_->objtype == TYPE_PC && static_cast<CCharEntity*>(entity_)->isBot())
+    {
+        botutils::StandOnGround(entity_->loc.zone, entity_->loc.p);
+    }
+
     entity_->updatemask |= UPDATE_POS;
 
     // The single chokepoint for pathfind repositions, keeping the zone's proximity grid current as the entity moves.

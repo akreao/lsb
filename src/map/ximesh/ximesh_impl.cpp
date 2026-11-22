@@ -1001,10 +1001,24 @@ auto XiMeshImpl::rayIntersectCellHitInfo(const Vector3& start, const Vector3& en
                 const auto fraction = std::sqrt(distanceSq / std::max(oDiff.magnitudeSquared(), 1e-12f));
                 if (!closestHit.has_value() || closestHit->fraction > fraction)
                 {
+                    // The face normal in world space: object-space normals map by the transpose of world-to-object.
+                    const auto& el    = w2os_[placementIdx].elements;
+                    const auto  e1    = vb - va;
+                    const auto  e2    = vc - va;
+                    const auto  n     = Vector3{ e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x };
+                    const auto  world = Vector3{
+                        el[0][0] * n.x + el[0][1] * n.y + el[0][2] * n.z,
+                        el[1][0] * n.x + el[1][1] * n.y + el[1][2] * n.z,
+                        el[2][0] * n.x + el[2][1] * n.y + el[2][2] * n.z,
+                    };
+                    const float length  = std::sqrt(std::max(world.magnitudeSquared(), 1e-12f));
+                    const float normalY = std::abs(world.y) / length;
+
                     closestHit = RayHitInfo{
                         .intersection = intersection,
                         .distanceSq   = distanceSq,
                         .fraction     = fraction,
+                        .normalY      = normalY,
                         .placement    = &place,
                         .type         = static_cast<xi::TerrainType>(meta.material),
                         .barrier      = meta.barrier != 0,

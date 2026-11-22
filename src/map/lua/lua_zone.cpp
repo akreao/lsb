@@ -379,6 +379,16 @@ auto CLuaZone::getNavMeshHeight(const float x, const float y, const float z) -> 
     return pos.y;
 }
 
+auto CLuaZone::getFloorHeight(const float x, const float from, const float z, const float to) -> sol::optional<float>
+{
+    if (const auto floor = botutils::FloorAlong(m_pLuaZone, position_t{ x, from, z, 0, 0 }, from, to))
+    {
+        return *floor;
+    }
+
+    return sol::nullopt;
+}
+
 auto CLuaZone::getBots() -> sol::table
 {
     auto table = lua.create_table();
@@ -537,6 +547,7 @@ void CLuaZone::Register()
     SOL_REGISTER("getBotScatterPoint", CLuaZone::getBotScatterPoint);
     SOL_REGISTER("getGroundHeight", CLuaZone::getGroundHeight);
     SOL_REGISTER("getNavMeshHeight", CLuaZone::getNavMeshHeight);
+    SOL_REGISTER("getFloorHeight", CLuaZone::getFloorHeight);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

@@ -162,6 +162,7 @@ struct RayHitInfo
     Vector3              intersection{}; // 3D hit point in object space
     float                distanceSq{};
     float                fraction{}; // how far along the world-space ray the hit is (0 = start, 1 = end)
+    float                normalY{};  // |y| of the face's world-space unit normal: 1 flat, 0 a wall
     const MeshPlacement* placement{};
     xi::TerrainType      type{ xi::TerrainType::None };
     bool                 barrier{};

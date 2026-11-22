@@ -693,21 +693,39 @@ auto GroundBelow(CZone* PZone, const position_t& pos, const float top, const flo
     return top + hit->fraction * (bottom - top);
 }
 
-auto GroundAbove(CZone* PZone, const position_t& pos, const float top, const float bottom) -> Maybe<float>
+// The first face a vertical ray from `from` to `to` meets that a player can stand on (down is +y, so from < to
+// casts down). Steeper faces (a rock's flank, a wall) are passed through: a player's client treats a face whose
+// normal has |y| under 0.708 as a wall (FUN_101679c0), so nobody stands on one.
+auto FloorAlong(CZone* PZone, const position_t& pos, float from, const float to) -> Maybe<float>
 {
-    if (PZone == nullptr || PZone->xiMesh() == nullptr || bottom <= top)
+    constexpr float FloorNormalY = 0.708f;
+    constexpr float Nudge        = 0.01f;
+    constexpr int   MaxFaces     = 8;
+
+    if (PZone == nullptr || PZone->xiMesh() == nullptr)
     {
         return std::nullopt;
     }
 
-    // The same ray cast upward, from bottom to top: the first face it meets is the lowest one in the span.
-    const auto hit = PZone->xiMesh()->getPositionInfo(Vector3{ pos.x, bottom, pos.z }, YOffsets{ 0.0f, top - bottom });
-    if (!hit.has_value())
+    const float sign = to > from ? 1.0f : -1.0f;
+    for (int face = 0; face < MaxFaces && (to - from) * sign > 0.0f; ++face)
     {
-        return std::nullopt;
+        const auto hit = PZone->xiMesh()->getPositionInfo(Vector3{ pos.x, from, pos.z }, YOffsets{ 0.0f, to - from });
+        if (!hit.has_value())
+        {
+            return std::nullopt;
+        }
+
+        const float y = from + hit->fraction * (to - from);
+        if (hit->normalY >= FloorNormalY)
+        {
+            return y;
+        }
+
+        from = y + Nudge * sign;
     }
 
-    return bottom + hit->fraction * (top - bottom);
+    return std::nullopt;
 }
 
 void StandOnGround(CZone* PZone, position_t& pos)
@@ -746,17 +764,18 @@ void StandOnGround(CZone* PZone, position_t& pos)
     }
 
     // The navmesh is the floor to within its build error (a cell height up, a detail error of a yalm either way). Stand
-    // on the collision face nearest to it, as a player's client stands its own character: the first face below within
-    // that error, else the lowest above. A face further off is another floor (a ledge below, a rock or a roof above).
-    if (const auto below = GroundBelow(PZone, pos, pos.y, pos.y + NavFloorError))
+    // on the walkable collision face nearest to it, as a player's client stands its own character: the first one below
+    // within that error, else the lowest above. A face further off is another floor (a ledge below, a roof above); a
+    // steep face (a rock's flank) is never a floor.
+    if (const auto below = FloorAlong(PZone, pos, pos.y, pos.y + NavFloorError))
     {
         pos.y = *below;
     }
-    else if (const auto above = GroundAbove(PZone, pos, pos.y - NavFloorError, pos.y))
+    else if (const auto above = FloorAlong(PZone, pos, pos.y, pos.y - NavFloorError))
     {
         pos.y = *above;
     }
-    else if (const auto further = GroundBelow(PZone, pos, pos.y, pos.y + NavFloorFallback))
+    else if (const auto further = FloorAlong(PZone, pos, pos.y, pos.y + NavFloorFallback))
     {
         // Where the navmesh drifts further from the floor (a coarse detail mesh over rough ground) the floor is the
         // next face down: a player's client would stand the bot there anyway.

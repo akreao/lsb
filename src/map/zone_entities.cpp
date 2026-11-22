@@ -2148,15 +2148,8 @@ auto CZoneEntities::botTick(CCharEntity* PBot, timer::time_point tick) -> Task<v
         PBot->StatusEffectContainer->TickEffects(tick);
     }
 
-    const auto before = PBot->loc.p;
-
+    // Its feet are put on the floor as it moves (EntityPathOwner::markPositionDirty), before its update goes out.
     co_await PBot->PAI->Tick(tick);
-
-    // A path's height runs straight between its corners; keep the bot's feet on the floor it walks on.
-    if (PBot->loc.p.x != before.x || PBot->loc.p.z != before.z)
-    {
-        botutils::StandOnGround(m_zone, PBot->loc.p);
-    }
 
     if (PBot->PTreasurePool)
     {

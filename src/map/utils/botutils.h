@@ -116,6 +116,10 @@ auto GroundBelow(CZone* PZone, const position_t& pos, float top, float bottom) -
 // nearest its height (a point off the navmesh slides onto a floor close by), then the collision face nearest that.
 void StandOnGround(CZone* PZone, position_t& pos);
 
+// The first face a vertical ray from `from` to `to` meets that a player can stand on (|normal y| of 0.708 or more),
+// passing through steeper ones. Down is +y.
+auto FloorAlong(CZone* PZone, const position_t& pos, float from, float to) -> Maybe<float>;
+
 // True when the bot may pick a fight: hunting is allowed in the zone (not a starting zone on
 // map.PLAYER_BOTS_NO_HUNT_ZONES, fewer than 3 real players of the zone's level there), and the zone has fewer
 // hunting bots than its cap (map.PLAYER_BOTS_MAX_HUNTERS, one less per real player of the zone's level).

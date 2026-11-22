@@ -220,6 +220,17 @@ end
 function CZone:getNavMeshHeight(x, y, z)
 end
 
+-- The height of the first face a player can stand on (not steeper than a player's client allows) along a vertical
+-- ray from `from` to `to` at x, z. Down is +y.
+---@nodiscard
+---@param x number
+---@param from number
+---@param z number
+---@param to number
+---@return number?
+function CZone:getFloorHeight(x, from, z, to)
+end
+
 ---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()

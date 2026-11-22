@@ -981,6 +981,38 @@ describe('Player bots', function()
         assert(tellsFrom('Farbot') == 1, 'the bot did not say where it is')
     end)
 
+    it('sends players the height it stands at while it walks', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 0)
+        local bot = assert(spawnBot('Heightbot'))
+
+        -- Clients draw a PC at the height in its 0x00D (the float at 0x10: the server's y goes in the packet's z). It
+        -- must be the bot's floor height, not the path height from before its feet were put on the floor.
+        local checked, worst = 0, 0
+        for _ = 1, 120 do
+            player.packets:clear()
+            player.actions:move(player:getXPos(), player:getYPos(), player:getZPos())
+            xi.test.world:skipTime(1)
+
+            local sent = nil
+            for _, packet in ipairs(player.packets:getIncoming()) do
+                if
+                    packet.type == 0x00D and
+                    packetReader.readU32(packet.data, 0x04) == bot:getID()
+                then
+                    sent = ffi.cast('float*', ffi.new('uint32_t[1]', packetReader.readU32(packet.data, 0x10)))[0]
+                end
+            end
+
+            if sent then
+                checked = checked + 1
+                worst   = math.max(worst, math.abs(sent - bot:getYPos()))
+            end
+        end
+
+        assert(checked > 20, string.format('only %d updates for the bot reached the player', checked))
+        assert(worst < 0.01, string.format('a sent height was %.2f yalms off where the bot stands', worst))
+    end)
+
     it('stands on the ground, not above it', function()
         local bot = assert(zoneSpawnAt('Groundbot', player:getXPos() + 1, player:getYPos() - 1.5, player:getZPos()))
         xi.test.world:skipTime(1)
