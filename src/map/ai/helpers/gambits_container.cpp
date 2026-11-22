@@ -29,10 +29,13 @@
 #include "ai/states/range_state.h"
 #include "ai/states/weaponskill_state.h"
 #include "enmity_container.h"
+#include "entities/char_entity.h"
 #include "entities/trust_entity.h"
 #include "notoriety_container.h"
+#include "recast_container.h"
 #include "spell.h"
 #include "utils/battleutils.h"
+#include "utils/charutils.h"
 #include "weapon_skill.h"
 
 #include "ai/controllers/player_controller.h"
@@ -486,9 +489,20 @@ auto CGambitsContainer::Tick(timer::time_point tick) -> Task<void>
                 // Basic validation: SPECIFIC must exist
                 if (action.select == G_SELECT::SPECIFIC)
                 {
-                    if (ability::GetAbility(action.select_arg) == nullptr)
+                    const auto* PAbility = ability::GetAbility(action.select_arg);
+                    if (PAbility == nullptr)
                     {
                         canExecute[i] = false;
+                    }
+                    else if (auto* PChar = dynamic_cast<CCharEntity*>(POwner))
+                    {
+                        // A player bot only has the abilities of its jobs at its levels; one it lacks, or that is
+                        // still recasting, must not hold up the gambits after it.
+                        if (!charutils::hasAbility(PChar, PAbility->getID()) ||
+                            PChar->PRecastContainer->HasRecast(xi::RecastType::Ability, PAbility->getRecastId(), PAbility->getRecastTime()))
+                        {
+                            canExecute[i] = false;
+                        }
                     }
                 }
                 // Other JA selects rely on TP checks; allow for now.

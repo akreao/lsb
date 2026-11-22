@@ -89,11 +89,39 @@ local lines =
         'Could use a raise if anyone has one.',
     },
 
+    -- Tell replies depend on what the bot is doing (map: botutils state).
     tell =
+    {
+        'Sorry, a bit busy at the moment.',
+        'Hi! Can\'t talk much right now.',
+    },
+
+    tell_hunting =
     {
         'Sorry, busy leveling right now.',
         'Hi! Can\'t talk much, I\'m fighting.',
-        'Sorry, a bit busy at the moment.',
+        'Mid-fight, sorry!',
+    },
+
+    tell_party =
+    {
+        'In a party right now, sorry.',
+        'Can\'t chat, my party is pulling.',
+    },
+
+    tell_seeking =
+    {
+        'Hi! Looking for a party, send me an invite!',
+        function(bot)
+            return string.format('%s%d looking for a party, send me an invite.', jobNames[bot:getMainJob()] or '', bot:getMainLvl())
+        end,
+    },
+
+    tell_town =
+    {
+        'Hi! Just taking a break in town.',
+        'Hey, just resting up before heading out.',
+        'Hi! Sorting my things, what\'s up?',
     },
 
     idle_city =
@@ -106,6 +134,35 @@ local lines =
         'Back from camping, time for a break.',
         'Anyone heading out to level?',
         'Nice day for it.',
+        'Anyone know where to buy arrows around here?',
+        'Phew, that last camp was rough.',
+        'Need to repair my gear... oh wait.',
+        'Does anyone have a spare Echo Drops?',
+        'I keep forgetting to vote for the conquest.',
+        'The weather looks good for fishing.',
+        'Selling? No, just looking around.',
+        'Ugh, I died twice to that crab.',
+        'Gotta save up for my next weapon.',
+        'Has anyone seen the airship schedule?',
+        'My chocobo license test went well!',
+        'Brb, grabbing food.',
+        'Who\'s up for a run to the dunes?',
+        'These boots are killing me.',
+        'I should really level my support job.',
+        'Is the auction house busy today?',
+        'Need a few more levels before the next mission.',
+        'So many quests, so little time.',
+        'Anyone else get lost in the city every time?',
+        'My moogle keeps losing my letters.',
+        'Just got a new spell, can\'t wait to try it.',
+        'That was a good party last night.',
+        'Time to sort my inventory again.',
+        'Waiting on a friend.',
+        'Heading out soon, anyone going my way?',
+        'I could use some crystals for crafting.',
+        'Morning, everyone.',
+        'Back to the grind after this.',
+        'Finally got that drop!',
     },
 }
 
@@ -113,11 +170,50 @@ local lines =
 -- player asked for an answer (an invite) or it happens once (joining, leaving).
 local cooldowns =
 {
-    death = 300,
-    tell  = 60,
+    death        = 300,
+    tell         = 60,
+    tell_hunting = 60,
+    tell_party   = 60,
+    tell_seeking = 60,
+    tell_town    = 60,
+}
+
+-- Events whose lines are not said again anywhere on the server within this many seconds (idle chatter).
+local noRepeat =
+{
+    idle_city = 3600,
 }
 
 local lastSaid = {}
+local lineUsed = {}
+
+-- The index of a line for the event: a random one, or for chatter one not said within the no-repeat time
+-- (the one said longest ago when every line was said recently).
+local function pickLine(event, choices)
+    local window = noRepeat[event]
+    if not window then
+        return math.random(1, #choices)
+    end
+
+    lineUsed[event] = lineUsed[event] or {}
+    local used      = lineUsed[event]
+    local now       = GetSystemTime()
+    local fresh     = {}
+    local oldest    = 1
+    for i = 1, #choices do
+        if not used[i] or now - used[i] >= window then
+            table.insert(fresh, i)
+        end
+
+        if (used[i] or 0) < (used[oldest] or 0) then
+            oldest = i
+        end
+    end
+
+    local index = #fresh > 0 and fresh[math.random(1, #fresh)] or oldest
+    used[index] = now
+    return index
+end
 
 -- Returns the line the bot says for the event, or nil to stay quiet.
 xi.bots.chatLine = function(bot, event)
@@ -128,7 +224,8 @@ xi.bots.chatLine = function(bot, event)
 
     local cooldown = cooldowns[event]
     if cooldown then
-        local key = string.format('%d:%s', bot:getID(), event)
+        -- Every tell reply shares one cooldown, whatever the bot is doing.
+        local key = string.format('%d:%s', bot:getID(), string.find(event, '^tell') and 'tell' or event)
         local now = GetSystemTime()
         if lastSaid[key] and now - lastSaid[key] < cooldown then
             return nil
@@ -137,7 +234,7 @@ xi.bots.chatLine = function(bot, event)
         lastSaid[key] = now
     end
 
-    local line = choices[math.random(1, #choices)]
+    local line = choices[pickLine(event, choices)]
     if type(line) == 'function' then
         line = line(bot)
     end
@@ -145,7 +242,13 @@ xi.bots.chatLine = function(bot, event)
     return line
 end
 
+-- The number of lines an event has (tests check the chatter pool).
+xi.bots.chatLineCount = function(event)
+    return lines[event] and #lines[event] or 0
+end
+
 -- Forgets every chat cooldown (tests call it between cases).
 xi.bots.resetChat = function()
     lastSaid = {}
+    lineUsed = {}
 end

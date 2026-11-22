@@ -321,14 +321,22 @@ xi.settings.map =
     -- Seconds a dead bot stays down (so it can be raised) before it comes back at a zone entrance.
     PLAYER_BOTS_RAISE_WAIT = 180,
 
-    -- Most bots in one zone. Cities aim for 8 to 12, outdoor zones 6 to 10, dungeons 4 to 8, under this cap.
+    -- Most bots in one zone. Cities aim for 4 to 6, outdoor zones 6 to 10, dungeons 4 to 8, under this cap.
     PLAYER_BOTS_MAX_PER_ZONE = 12,
+
+    -- Most bots on the whole map process, whatever the zones want.
+    PLAYER_BOTS_MAX_TOTAL = 60,
+
+    -- A bot plays for this many minutes (picked at random between the two) and logs out once it is alone and not
+    -- fighting; a new one comes in its place. Party bots stay while their party lasts.
+    PLAYER_BOTS_STAY_MIN = 30,
+    PLAYER_BOTS_STAY_MAX = 120,
 
     -- Seconds between bot arrivals in a zone with players (one bot at a time).
     PLAYER_BOTS_ARRIVAL_INTERVAL = 20,
 
     -- Seconds bots stay after the last real player leaves a zone.
-    PLAYER_BOTS_LEAVE_DELAY = 300,
+    PLAYER_BOTS_LEAVE_DELAY = 1800,
 
     -- Zone ids bots never enter, on top of instances and Dynamis (Chocobo Circuit, Mog Garden, Feretory).
     PLAYER_BOTS_EXCLUDED_ZONES = { 70, 280, 285 },
@@ -353,4 +361,11 @@ xi.settings.map =
 
     -- About this many seconds between idle bot lines in a city (0 = never).
     PLAYER_BOTS_SAY_INTERVAL = 600,
+
+    -- Bots never hunt within this many yalms of a player who typed `!bots off` (bots are hidden for them too).
+    PLAYER_BOTS_OPT_OUT_RANGE = 60,
+
+    -- The line a bot shows in the /check window, where a player's bazaar comment goes: the documented way to tell
+    -- a bot from a person (names stay plain). Empty shows nothing.
+    PLAYER_BOTS_CHECK_NOTE = 'AI adventurer',
 }

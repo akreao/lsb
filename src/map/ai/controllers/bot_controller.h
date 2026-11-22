@@ -26,6 +26,7 @@
 #include "ai/helpers/gambits_host.h"
 
 #include <memory>
+#include <unordered_map>
 
 class CCharEntity;
 class CMobEntity;
@@ -69,11 +70,21 @@ public:
     // True once a dead bot has waited long enough for a raise; the zone then moves it to an entrance.
     auto WantsRespawn() const -> bool;
 
+    // True when the bot's play session ran out and it is free to go (alone, not fighting, alive); the zone then
+    // logs it out.
+    auto WantsLogout() const -> bool;
+
+    // When the bot came into the world (its zone, for a follower).
+    auto OnlineSince() const -> timer::time_point;
+
     // Where the bot roams around and runs back to.
     void SetHome(const position_t& home);
 
     // A party invite is waiting in the bot's InvitePending; it answers after a short, human-looking delay.
     void QueueInvite();
+
+    // A player invited the bot: true when it will answer, false for a repeat invite within a minute (no answer).
+    auto TakeInvite(uint32 inviterId) -> bool;
 
     // A player sent the bot a tell; it answers after a short delay.
     void QueueTellReply(uint32 senderId);
@@ -93,6 +104,9 @@ private:
 
     void DecideInvite();
     void AnswerTell();
+
+    // Now and then cures a nearly dead real player close by, or raises a dead one, outside any party.
+    void HelpStranger(timer::time_point tick);
 
     // The real player leading the bot's party in its zone, or nullptr when there is none (zoned, logged out).
     auto PartyLeaderHere() const -> CCharEntity*;
@@ -144,10 +158,15 @@ private:
     timer::time_point m_nextAttackerCheck{};
     bool              m_restingForMP{ false }; // a party bot resting for its own MP, not because the leader rests
     timer::time_point m_deathTime{};
+    timer::time_point m_onlineSince{};
+    timer::time_point m_logoutAt{}; // when its play session ends (map.PLAYER_BOTS_STAY_MIN to _MAX minutes)
 
-    timer::time_point m_inviteAt{};
-    uint32            m_tellFrom{ 0 };
-    timer::time_point m_tellAt{};
+    timer::time_point                             m_inviteAt{};
+    uint32                                        m_tellFrom{ 0 };
+    std::unordered_map<uint32, timer::time_point> m_lastInvite; // inviter id, when it last invited
+    std::unordered_map<uint32, timer::time_point> m_helped;     // stranger id, when the bot last helped them
+    timer::time_point                             m_nextGoodDeed{};
+    timer::time_point                             m_tellAt{};
 
     bool   m_inParty{ false };   // was in a party at the last tick (to notice a dismissal)
     uint32 m_partyLeaderId{ 0 }; // the party's leader when last seen here, to follow it or say goodbye

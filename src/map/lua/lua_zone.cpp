@@ -345,6 +345,16 @@ auto CLuaZone::getBotEntrances() -> sol::table
     return table;
 }
 
+auto CLuaZone::getBotScatterPoint() -> sol::optional<sol::table>
+{
+    if (const auto point = botutils::ScatterPoint(m_pLuaZone))
+    {
+        return lua.create_table_with("x", point->x, "y", point->y, "z", point->z, "rot", point->rotation);
+    }
+
+    return sol::nullopt;
+}
+
 auto CLuaZone::getGroundHeight(const float x, const float top, const float z, const float bottom) -> sol::optional<float>
 {
     const position_t pos{ x, top, z, 0, 0 };
@@ -511,6 +521,7 @@ void CLuaZone::Register()
     SOL_REGISTER("getBotCount", CLuaZone::getBotCount);
     SOL_REGISTER("getBots", CLuaZone::getBots);
     SOL_REGISTER("getBotEntrances", CLuaZone::getBotEntrances);
+    SOL_REGISTER("getBotScatterPoint", CLuaZone::getBotScatterPoint);
     SOL_REGISTER("getGroundHeight", CLuaZone::getGroundHeight);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);

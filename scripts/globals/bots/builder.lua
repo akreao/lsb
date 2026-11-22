@@ -225,6 +225,55 @@ xi.bots.gearFor = function(job, level)
     return chosen
 end
 
+-- Real players at the same level don't all match: some swap their head or body piece for another common one.
+-- The swaps come from the other jobs' sets of the same band (and the band below), as long as this job can wear
+-- them at this level. Returns a new table; the gear file is never changed.
+local swapOdds =
+{
+    [xi.slot.HEAD] = 50, -- percent
+    [xi.slot.BODY] = 35,
+}
+
+xi.bots.varyGear = function(job, level, set)
+    local varied = {}
+    for slot, itemId in pairs(set) do
+        varied[slot] = itemId
+    end
+
+    local bands = {}
+    for _, band in ipairs(xi.bots.gearBands) do
+        if band <= level then
+            table.insert(bands, band)
+        end
+    end
+
+    local nearBands = { bands[#bands], bands[#bands - 1] }
+
+    for slot, odds in pairs(swapOdds) do
+        if math.random(1, 100) <= odds then
+            local choices = {}
+            for otherJob, sets in pairs(xi.bots.gear) do
+                for _, band in ipairs(nearBands) do
+                    local itemId = otherJob ~= job and sets[band] and sets[band][slot]
+                    if
+                        itemId and
+                        itemId ~= varied[slot] and
+                        CanBotWear(itemId, job, level, slot)
+                    then
+                        table.insert(choices, itemId)
+                    end
+                end
+            end
+
+            if #choices > 0 then
+                varied[slot] = choices[math.random(1, #choices)]
+            end
+        end
+    end
+
+    return varied
+end
+
 -- Every gear entry must exist, fit its slot, and be wearable by the job at the band's first level.
 -- Returns a list of problems (empty when the file is good).
 xi.bots.checkGear = function()
@@ -274,7 +323,7 @@ xi.bots.spawn = function(zone, pos, overrides)
         y        = pos.y,
         z        = pos.z,
         rot      = pos.rot or math.random(0, 255),
-        gear     = overrides.gear or xi.bots.gearFor(job, level),
+        gear     = overrides.gear or xi.bots.varyGear(job, level, xi.bots.gearFor(job, level)),
         seeking  = math.random(1, 3) == 1, -- about a third look for a party
     }
 

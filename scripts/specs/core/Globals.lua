@@ -65,6 +65,24 @@ end
 function CanBotWear(itemId, job, level, slot)
 end
 
+---Every live player bot on this map process: name, id, zone, job and level, state, party leader, position, time online.
+---@nodiscard
+---@return { id: integer, name: string, zoneId: integer, zoneName: string, job: xi.job, level: integer, subJob: xi.job, subLevel: integer, state: string, partyWith: string, x: number, y: number, z: number, onlineSeconds: integer }[]
+function GetBotList()
+end
+
+---Pauses player bots (no arrivals, no new hunts) or lets them run again.
+---@param paused boolean
+---@return nil
+function SetBotsPaused(paused)
+end
+
+---True while player bots are paused.
+---@nodiscard
+---@return boolean
+function AreBotsPaused()
+end
+
 ---@nodiscard
 ---@param itemId xi.item
 ---@return number

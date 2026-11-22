@@ -295,6 +295,7 @@ void PopulateIDLookupsByZone(Maybe<xi::ZoneId> maybeZoneId = std::nullopt, const
 
 void SendEntityVisualPacket(uint32 npcId, const char* command);
 void InitInteractionGlobal();
+auto GetBotList() -> sol::table;
 auto GetZone(xi::ZoneId zoneId) -> CZone*;
 auto GetItemByID(uint32 itemId) -> const CItem*;
 auto GetItemFlagsByID(uint32 itemId) -> xi::ItemFlag;

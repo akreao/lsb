@@ -27,6 +27,7 @@
 
 #include "entities/char_entity.h"
 
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 #include "utils/petutils.h"
 #include "zone.h"
@@ -244,6 +245,7 @@ void MapSessionContainer::cleanupSessions(IPP mapIPP)
                     if (!otherMap)
                     {
                         persist::flush(PChar, IsLogout::Yes);
+                        botutils::ForgetPlayer(PChar->id);
 
                         db::preparedStmt("DELETE FROM accounts_sessions WHERE charid = ?", map_session_data->charID);
 

@@ -26,6 +26,10 @@
 #include "entities/char_entity.h"
 
 #include "packets/s2c/0x041_black_list.h"
+#include "utils/botutils.h"
+
+#include <algorithm>
+#include <iterator>
 
 namespace blacklistutils
 {
@@ -60,25 +64,6 @@ auto DeleteBlacklisted(uint32 ownerId, uint32 targetId) -> bool
 
 void SendBlacklist(CCharEntity* PChar)
 {
-    std::vector<std::pair<uint32, std::string>> blacklist;
-
-    // Obtain this users blacklist info
-    const auto rset = db::preparedStmt("SELECT c.charid, c.charname FROM char_blacklist AS b INNER JOIN chars AS c ON b.charid_target = c.charid WHERE charid_owner = ?", PChar->id);
-    if (!rset || !rset->rowsCount())
-    {
-        PChar->pushPacket<GP_SERV_COMMAND_BLACK_LIST>(
-            blacklist,
-            GP_SERV_COMMAND_BLACK_LIST::ResetClientBlacklist::Yes,
-            GP_SERV_COMMAND_BLACK_LIST::LastBlacklistPacket::Yes);
-
-        return;
-    }
-
-    // Loop and build blacklist
-    int       currentCount = 0;
-    int       totalCount   = 0;
-    const int rowCount     = rset->rowsCount();
-
     auto isNameCharactersOnly = [](const std::string& name) -> bool
     {
         // null terminator added for paranoia, the docs say `find_first_not_of` _will_ check those.
@@ -86,37 +71,43 @@ void SendBlacklist(CCharEntity* PChar)
         return to_lower(name).find_first_not_of("abcdefghijklmnopqrstuvwxyz\0") == std::string::npos;
     };
 
-    while (rset->next())
+    // Obtain this users blacklist info
+    std::vector<std::pair<uint32, std::string>> entries;
+
+    const auto rset = db::preparedStmt("SELECT c.charid, c.charname FROM char_blacklist AS b INNER JOIN chars AS c ON b.charid_target = c.charid WHERE charid_owner = ?", PChar->id);
+    while (rset && rset->next())
     {
         auto accid_target = rset->get<uint32>(0);
         auto targetName   = rset->get<std::string>(1);
 
         if (isNameCharactersOnly(targetName))
         {
-            blacklist.emplace_back(accid_target, targetName);
-            currentCount++;
-            totalCount++;
-
-            if (currentCount == 12)
-            {
-                PChar->pushPacket<GP_SERV_COMMAND_BLACK_LIST>(
-                    blacklist,
-                    GP_SERV_COMMAND_BLACK_LIST::ResetClientBlacklist{ totalCount <= 12 },
-                    GP_SERV_COMMAND_BLACK_LIST::LastBlacklistPacket{ totalCount == rowCount });
-
-                blacklist.clear();
-                currentCount = 0;
-            }
+            entries.emplace_back(accid_target, targetName);
         }
     }
 
-    // Push remaining entries..
-    if (!blacklist.empty())
+    // Player bots the player blacklisted this session (memory only).
+    std::ranges::copy(botutils::BlacklistedBots(PChar), std::back_inserter(entries));
+
+    if (entries.empty())
     {
         PChar->pushPacket<GP_SERV_COMMAND_BLACK_LIST>(
-            blacklist,
-            GP_SERV_COMMAND_BLACK_LIST::ResetClientBlacklist::No,
+            entries,
+            GP_SERV_COMMAND_BLACK_LIST::ResetClientBlacklist::Yes,
             GP_SERV_COMMAND_BLACK_LIST::LastBlacklistPacket::Yes);
+
+        return;
+    }
+
+    // At most 12 entries per packet; the first resets the client's list, the last says so.
+    for (std::size_t start = 0; start < entries.size(); start += 12)
+    {
+        const auto end = std::min(start + 12, entries.size());
+
+        PChar->pushPacket<GP_SERV_COMMAND_BLACK_LIST>(
+            std::vector<std::pair<uint32, std::string>>(entries.begin() + start, entries.begin() + end),
+            GP_SERV_COMMAND_BLACK_LIST::ResetClientBlacklist{ start == 0 },
+            GP_SERV_COMMAND_BLACK_LIST::LastBlacklistPacket{ end == entries.size() });
     }
 }
 

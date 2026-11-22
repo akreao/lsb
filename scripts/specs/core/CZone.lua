@@ -195,6 +195,12 @@ end
 function CZone:getBotEntrances()
 end
 
+-- A random point reachable from an entrance and out of every real player's sight, or nil (first bots of a zone).
+---@nodiscard
+---@return { x: number, y: number, z: number, rot: integer }?
+function CZone:getBotScatterPoint()
+end
+
 -- The height of the first floor (collision mesh) a ray meets going down from top to bottom at x, z. Down is +y.
 ---@nodiscard
 ---@param x number

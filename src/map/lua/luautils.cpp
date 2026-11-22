@@ -328,6 +328,9 @@ void init(IPP mapIPP, bool isRunningInCI)
     lua.set_function("CheckDatabaseForBots", &botutils::CheckDatabaseForBots);
     lua.set_function("IsBotPlaceholderScript", &botutils::IsPlaceholderScript);
     lua.set_function("CanBotWear", &botutils::CanWear);
+    lua.set_function("GetBotList", &luautils::GetBotList);
+    lua.set_function("SetBotsPaused", &botutils::SetPaused);
+    lua.set_function("AreBotsPaused", &botutils::IsPaused);
     lua.set_function("GetItemLevelRequirementsByID", &luautils::GetItemLevelRequirementsByID);
     lua.set_function("GetNPCByID", &luautils::GetNPCByID);
     lua.set_function("GetMobByID", &luautils::GetMobByID);
@@ -1659,6 +1662,33 @@ void InitInteractionGlobal()
         const sol::error err = result;
         ShowError("luautils::InitInteractionGlobal: %s", err.what());
     }
+}
+
+// Every live player bot as a table (name, id, zone, job and level, state, party leader, position, online time).
+auto GetBotList() -> sol::table
+{
+    auto table = lua.create_table();
+    for (const auto& info : botutils::ListBots())
+    {
+        auto entry             = lua.create_table();
+        entry["id"]            = info.id;
+        entry["name"]          = info.name;
+        entry["zoneId"]        = info.zoneId;
+        entry["zoneName"]      = info.zoneName;
+        entry["job"]           = info.mainJob;
+        entry["level"]         = info.mainLevel;
+        entry["subJob"]        = info.subJob;
+        entry["subLevel"]      = info.subLevel;
+        entry["state"]         = info.state;
+        entry["partyWith"]     = info.partyWith;
+        entry["x"]             = info.pos.x;
+        entry["y"]             = info.pos.y;
+        entry["z"]             = info.pos.z;
+        entry["onlineSeconds"] = info.onlineSeconds;
+        table.add(entry);
+    }
+
+    return table;
 }
 
 auto GetZone(const xi::ZoneId zoneId) -> CZone*

@@ -49,6 +49,7 @@
 #include "packets/s2c/0x017_chat_std.h"
 #include "party.h"
 #include "spell.h"
+#include "status_effect_container.h"
 #include "treasure_pool.h"
 #include "ximesh/ximesh.h"
 #include "zone.h"
@@ -87,6 +88,29 @@ std::unordered_map<uint16, std::vector<position_t>> zoneEntrances;
 
 // When each zone may next hear an idle line from a bot.
 std::unordered_map<uint16, timer::time_point> nextIdleChat;
+
+// `!bot pause`: no arrivals, no new hunts, until a GM resumes (memory only).
+bool botsPaused = false;
+
+// Bots each real player put on their blacklist this session (custom: bots have no char_blacklist row): char id ->
+// lower-case bot name -> the id the client was given for it. Forgotten at logout.
+std::unordered_map<uint32, std::unordered_map<std::string, uint32>> botBlacklists;
+
+// Say lines reach this far, as a player's do.
+constexpr float SayRange = 50.0f;
+
+// A blacklist holds at most this many bots per player.
+constexpr std::size_t MaxBlacklistedBots = 50;
+
+auto lowerName(const std::string& name) -> std::string
+{
+    std::string lower = name;
+    std::ranges::transform(lower, lower.begin(), [](const unsigned char c)
+                           {
+                               return static_cast<char>(std::tolower(c));
+                           });
+    return lower;
+}
 
 // Where real players fight, per zone and character, and until when it counts as their camp.
 struct Camp
@@ -268,6 +292,48 @@ auto idRangeIsFree() -> bool
     return free;
 }
 
+// Bot lines go to the chat audit like a player's, with the type marked BOT_ so nobody mistakes them for a person.
+void AuditChat(const CCharEntity* PBot, const ChatChannel channel, const std::string& text, const CCharEntity* PTarget)
+{
+    if (!settings::get<bool>("map.AUDIT_CHAT"))
+    {
+        return;
+    }
+
+    const char* type    = "BOT_SAY";
+    const char* setting = "map.AUDIT_SAY";
+    switch (channel)
+    {
+        case ChatChannel::Tell:
+            type    = "BOT_TELL";
+            setting = "map.AUDIT_TELL";
+            break;
+        case ChatChannel::Party:
+            type    = "BOT_PARTY";
+            setting = "map.AUDIT_PARTY";
+            break;
+        case ChatChannel::Say:
+            break;
+    }
+
+    if (!settings::get<bool>(setting))
+    {
+        return;
+    }
+
+    const auto  zoneId    = PBot->loc.zone != nullptr ? static_cast<uint16>(PBot->loc.zone->GetID()) : uint16{ 0 };
+    const auto& recipient = PTarget != nullptr ? PTarget->getName() : std::string{};
+    if (!db::preparedStmt("INSERT INTO audit_chat (speaker, type, zoneid, recipient, message, datetime) VALUES(?, ?, ?, NULLIF(?, ''), ?, current_timestamp())",
+                          PBot->getName(),
+                          type,
+                          zoneId,
+                          recipient,
+                          text))
+    {
+        ShowErrorFmt("Player bots: failed to audit a line from {}", PBot->getName());
+    }
+}
+
 } // namespace
 
 auto IsBotId(const uint32 id) -> bool
@@ -435,6 +501,8 @@ void ResetForTests()
     liveBotSpecs.clear();
     zoneEntrances.clear();
     nextIdleChat.clear();
+    botBlacklists.clear();
+    botsPaused = false;
     playerCamps.clear();
     levelBands.clear();
     placeholderScripts.clear();
@@ -645,11 +713,14 @@ auto IsFairPrey(CCharEntity* PBot, CMobEntity* PMob) -> bool
         return false;
     }
 
-    // Leave it to any real player close to it, or who has it targeted.
+    // Leave it to any real player close to it, or who has it targeted; never hunt near a player who turned bots off.
     constexpr float PlayerClearRange = 25.0f;
+    const float     optOutRange      = settings::get<float>("map.PLAYER_BOTS_OPT_OUT_RANGE");
     for (const auto* PChar : RealPlayers(PZone))
     {
-        if (::distance(PChar->loc.p, PMob->loc.p) < PlayerClearRange || PChar->m_TargID == PMob->targid || PChar->GetBattleTarget() == PMob)
+        const float range = ::distance(PChar->loc.p, PMob->loc.p);
+        if (range < PlayerClearRange || PChar->m_TargID == PMob->targid || PChar->GetBattleTarget() == PMob ||
+            (range < optOutRange && OptedOut(PChar)))
         {
             return false;
         }
@@ -680,7 +751,7 @@ void DropClaims(CCharEntity* PBot)
 auto MayHunt(CCharEntity* PBot) -> bool
 {
     auto* PZone = PBot->loc.zone;
-    if (PZone == nullptr)
+    if (PZone == nullptr || botsPaused)
     {
         return false;
     }
@@ -730,7 +801,7 @@ auto MayHunt(CCharEntity* PBot) -> bool
 void Populate(CZone* PZone)
 {
     const auto populate = lua["xi"]["bots"]["populate"];
-    if (!populate.valid())
+    if (botsPaused || !populate.valid())
     {
         return;
     }
@@ -758,6 +829,12 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
     if (spec.mainJob == 0 || spec.mainJob >= MAX_JOBTYPE || spec.subJob >= MAX_JOBTYPE || spec.mainLevel == 0)
     {
         ShowWarningFmt("botutils::SpawnBot: bad job or level for {}", spec.name);
+        return nullptr;
+    }
+
+    // A cap for the whole server, whatever each zone wants (respawns and followers leave before they come back).
+    if (liveBotSpecs.size() >= settings::get<uint16>("map.PLAYER_BOTS_MAX_TOTAL"))
+    {
         return nullptr;
     }
 
@@ -867,6 +944,10 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
 
     PRaw->playerConfig.InviteFlg = spec.seeking;
 
+    // The documented sign that this is a bot: a fixed line in the /check window (the bazaar comment), where a
+    // player writes their own (custom). Its bazaar has nothing for sale.
+    PRaw->bazaar.message = settings::get<std::string>("map.PLAYER_BOTS_CHECK_NOTE");
+
     PRaw->loc.p = spec.pos;
     SnapToGround(PZone, PRaw->loc.p, PRaw->loc.p.y);
     PRaw->loc.destination = PZone->GetID();
@@ -905,6 +986,11 @@ void OnPartyInvite(CCharEntity* PBot, CCharEntity* PInviter)
     if (PController == nullptr || PBot->isDead() || PBot->InvitePending.entity.UniqueNo != 0)
     {
         PInviter->pushPacket<GP_SERV_COMMAND_MESSAGE>(PInviter, 0, 0, MsgStd::CannotInvite);
+        return;
+    }
+
+    if (!PController->TakeInvite(PInviter->id))
+    {
         return;
     }
 
@@ -1059,6 +1145,13 @@ void Chat(CCharEntity* PBot, const std::string& event, const ChatChannel channel
         return;
     }
 
+    // Nothing for a player who blacklisted the bot or turned bots off (before a line is picked, so its cooldown
+    // is not used up on nobody).
+    if (channel == ChatChannel::Tell && (PTarget == nullptr || IgnoresBot(PTarget, PBot)))
+    {
+        return;
+    }
+
     const auto chatLine = lua["xi"]["bots"]["chatLine"];
     if (!chatLine.valid())
     {
@@ -1083,10 +1176,7 @@ void Chat(CCharEntity* PBot, const std::string& event, const ChatChannel channel
     switch (channel)
     {
         case ChatChannel::Tell:
-            if (PTarget != nullptr)
-            {
-                PTarget->pushPacket<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_TELL, text);
-            }
+            PTarget->pushPacket<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_TELL, text);
             break;
         case ChatChannel::Party:
             if (PBot->PParty != nullptr)
@@ -1097,10 +1187,21 @@ void Chat(CCharEntity* PBot, const std::string& event, const ChatChannel channel
         case ChatChannel::Say:
             if (PBot->loc.zone != nullptr)
             {
-                PBot->loc.zone->PushPacket(PBot, CHAR_INRANGE, std::make_unique<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_SAY, text));
+                // Not to players who blacklisted the bot or turned bots off.
+                const auto packet = std::make_unique<GP_SERV_COMMAND_CHAT_STD>(PBot, MESSAGE_SAY, text);
+                PBot->loc.zone->ForEachChar(
+                    [&](CCharEntity* PChar)
+                    {
+                        if (distance(PChar->loc.p, PBot->loc.p) <= SayRange && !IgnoresBot(PChar, PBot))
+                        {
+                            PChar->pushPacket(packet->copy());
+                        }
+                    });
             }
             break;
     }
+
+    AuditChat(PBot, channel, text, PTarget);
 }
 
 void IdleChat(CZone* PZone)
@@ -1142,6 +1243,237 @@ void IdleChat(CZone* PZone)
     {
         Chat(speakers[xirand::GetRandomNumber(speakers.size())], "idle_city", ChatChannel::Say);
     }
+}
+
+auto IgnoresBot(const CCharEntity* PChar, const CCharEntity* PBot) -> bool
+{
+    if (PChar == nullptr || PBot == nullptr)
+    {
+        return false;
+    }
+
+    if (PChar->getCharVar(OptOutVar) > 0)
+    {
+        return true;
+    }
+
+    const auto it = botBlacklists.find(PChar->id);
+    return it != botBlacklists.end() && it->second.contains(lowerName(PBot->getName()));
+}
+
+auto BlacklistBot(CCharEntity* PChar, const std::string& name) -> uint32
+{
+    const auto* PBot = FindBotByName(name);
+    if (PChar == nullptr || PBot == nullptr)
+    {
+        return 0;
+    }
+
+    auto& list = botBlacklists[PChar->id];
+    if (list.contains(lowerName(PBot->getName())) || list.size() >= MaxBlacklistedBots)
+    {
+        return 0;
+    }
+
+    list[lowerName(PBot->getName())] = PBot->id;
+    return PBot->id;
+}
+
+auto UnblacklistBot(const CCharEntity* PChar, const std::string& name) -> uint32
+{
+    const auto it = botBlacklists.find(PChar->id);
+    if (it == botBlacklists.end())
+    {
+        return 0;
+    }
+
+    const auto entry = it->second.find(lowerName(name));
+    if (entry == it->second.end())
+    {
+        return 0;
+    }
+
+    const uint32 id = entry->second;
+    it->second.erase(entry);
+    return id;
+}
+
+auto BlacklistedBots(const CCharEntity* PChar) -> std::vector<std::pair<uint32, std::string>>
+{
+    std::vector<std::pair<uint32, std::string>> result;
+    const auto                                  it = botBlacklists.find(PChar->id);
+    if (it == botBlacklists.end())
+    {
+        return result;
+    }
+
+    for (const auto& [name, id] : it->second)
+    {
+        // The client shows the name as the bot spells it.
+        const auto* PBot  = FindBotByName(name);
+        auto        shown = PBot != nullptr ? PBot->getName() : name;
+        if (PBot == nullptr && !shown.empty())
+        {
+            shown[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(shown[0])));
+        }
+
+        result.emplace_back(id, shown);
+    }
+
+    return result;
+}
+
+void ForgetPlayer(const uint32 charId)
+{
+    botBlacklists.erase(charId);
+}
+
+auto OptedOut(const CCharEntity* PChar) -> bool
+{
+    return PChar != nullptr && !IsBot(PChar) && PChar->getCharVar(OptOutVar) > 0;
+}
+
+auto GetLiveBotCount() -> std::size_t
+{
+    return liveBotSpecs.size();
+}
+
+auto ScatterPoint(CZone* PZone) -> Maybe<position_t>
+{
+    if (PZone == nullptr || PZone->navMesh() == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const auto& entrances = GetEntrances(PZone);
+    if (entrances.empty())
+    {
+        return std::nullopt;
+    }
+
+    // Anywhere on the navmesh within reach of an entrance, out of the sight of every real player.
+    constexpr float ScatterRadius = 200.0f;
+    constexpr float OutOfSight    = 60.0f;
+    const auto      players       = RealPlayers(PZone);
+    for (int attempt = 0; attempt < 10; ++attempt)
+    {
+        const auto& from  = entrances[xirand::GetRandomNumber(entrances.size())];
+        const auto  point = PZone->navMesh()->findRandomPosition(from, ScatterRadius);
+        if (!point)
+        {
+            continue;
+        }
+
+        const bool seen = std::ranges::any_of(players, [&](const CCharEntity* PChar)
+                                              {
+                                                  return ::distance(PChar->loc.p, *point) < OutOfSight;
+                                              });
+        if (!seen)
+        {
+            return point;
+        }
+    }
+
+    return std::nullopt;
+}
+
+void OnLogout(CCharEntity* PBot)
+{
+    if (const auto onLogout = lua["xi"]["bots"]["onLogout"]; onLogout.valid())
+    {
+        const auto result = onLogout.get<sol::protected_function>()(CLuaBaseEntity(PBot));
+        if (!result.valid())
+        {
+            const sol::error err = result;
+            ShowErrorFmt("botutils::OnLogout: {}", err.what());
+        }
+    }
+}
+
+auto ListBots() -> std::vector<BotInfo>
+{
+    std::vector<BotInfo> bots;
+    zoneutils::ForEachZone(
+        [&](CZone* PZone)
+        {
+            if (PZone->GetBotCount() == 0)
+            {
+                return;
+            }
+
+            PZone->ForEachBot(
+                [&](CCharEntity* PBot)
+                {
+                    BotInfo info;
+                    info.id        = PBot->id;
+                    info.name      = PBot->getName();
+                    info.zoneId    = static_cast<uint16>(PZone->GetID());
+                    info.zoneName  = PZone->getName();
+                    info.mainJob   = static_cast<uint8>(PBot->GetMJob());
+                    info.mainLevel = PBot->GetMLevel();
+                    info.subJob    = static_cast<uint8>(PBot->GetSJob());
+                    info.subLevel  = PBot->GetSLevel();
+                    info.pos       = PBot->loc.p;
+
+                    const auto* PController = dynamic_cast<CBotController*>(PBot->PAI->GetController());
+                    if (PBot->isDead())
+                    {
+                        info.state = "dead";
+                    }
+                    else if (PBot->PAI->IsEngaged())
+                    {
+                        info.state = "fighting";
+                    }
+                    else if (PBot->PParty != nullptr)
+                    {
+                        info.state = "party";
+                    }
+                    else if (PController != nullptr && PController->IsHunting())
+                    {
+                        info.state = "hunting";
+                    }
+                    else if (PBot->StatusEffectContainer->HasStatusEffect(xi::StatusEffect::Healing))
+                    {
+                        info.state = "resting";
+                    }
+                    else if (PBot->playerConfig.InviteFlg)
+                    {
+                        info.state = "seeking";
+                    }
+                    else
+                    {
+                        info.state = "roaming";
+                    }
+
+                    if (PBot->PParty != nullptr)
+                    {
+                        if (const auto* PLeader = PBot->PParty->GetLeader())
+                        {
+                            info.partyWith = PLeader->getName();
+                        }
+                    }
+
+                    if (PController != nullptr)
+                    {
+                        info.onlineSeconds = static_cast<uint32>(std::chrono::duration_cast<std::chrono::seconds>(timer::now() - PController->OnlineSince()).count());
+                    }
+
+                    bots.push_back(std::move(info));
+                });
+        });
+
+    return bots;
+}
+
+void SetPaused(const bool paused)
+{
+    botsPaused = paused;
+    ShowInfoFmt("Player bots: {}", paused ? "paused (no arrivals, no new hunts)" : "running again");
+}
+
+auto IsPaused() -> bool
+{
+    return botsPaused;
 }
 
 } // namespace botutils

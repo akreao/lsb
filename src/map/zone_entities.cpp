@@ -202,6 +202,12 @@ void CZoneEntities::TryAddToNearbySpawnLists(CBaseEntity* PEntity)
                             continue;
                         }
 
+                        // A player who turned bots off never sees one.
+                        if (PChar->isBot() && botutils::OptedOut(PCurrentChar))
+                        {
+                            continue;
+                        }
+
                         PCurrentChar->SpawnPCList[PEntity->id] = PEntity;
                         PCurrentChar->updateEntityPacket(PChar, ENTITY_SPAWN, UPDATE_ALL_CHAR);
                         break;
@@ -1313,6 +1319,7 @@ void CZoneEntities::SpawnPCs(CCharEntity* PChar)
         // Despawn character if it's a hidden GM that isn't PChar, is in a different mog house, or if player is in a conflict while other is not, or too far up/down
         if (((PChar != PCurrentChar) && PCurrentChar->m_isGMHidden) ||
             PChar->m_moghouseID != PCurrentChar->m_moghouseID ||
+            (PCurrentChar->isBot() && botutils::OptedOut(PChar)) ||
             !isWithinVerticalDistance(PChar, PCurrentChar))
         {
             toRemove.emplace_back(PCurrentChar);
@@ -1362,7 +1369,8 @@ void CZoneEntities::SpawnPCs(CCharEntity* PChar)
     {
         if (PCurrentChar != nullptr && PChar != PCurrentChar && !PChar->SpawnPCList.contains(PCurrentChar->id))
         {
-            if (PCurrentChar->m_isGMHidden || PChar->m_moghouseID != PCurrentChar->m_moghouseID)
+            if (PCurrentChar->m_isGMHidden || PChar->m_moghouseID != PCurrentChar->m_moghouseID ||
+                (PCurrentChar->isBot() && botutils::OptedOut(PChar)))
             {
                 return;
             }
@@ -2309,6 +2317,7 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
 
     std::vector<uint16> botsToRespawn;
     std::vector<uint16> botsToFollow;
+    std::vector<uint16> botsToLogout;
     for (auto* PEntity : tickEntityScratch_)
     {
         auto* PBot = static_cast<CCharEntity*>(PEntity);
@@ -2319,6 +2328,10 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
             if (PController->WantsRespawn())
             {
                 botsToRespawn.push_back(PBot->targid);
+            }
+            else if (PController->WantsLogout())
+            {
+                botsToLogout.push_back(PBot->targid);
             }
             else if (PController->FollowTarget() != 0)
             {
@@ -2331,6 +2344,16 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     for (const uint16 targid : botsToRespawn)
     {
         respawnBot(targid);
+    }
+
+    // Bots whose play session ran out log out; new ones arrive in their place.
+    for (const uint16 targid : botsToLogout)
+    {
+        if (const auto it = m_botList.find(targid); it != m_botList.end())
+        {
+            botutils::OnLogout(it->second.get());
+            DespawnBot(targid);
+        }
     }
 
     // Party bots whose leader zoned go after it (custom). The leader is looked up again: the tick above may have

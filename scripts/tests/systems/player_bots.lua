@@ -175,23 +175,35 @@ describe('Player bots', function()
         assert(GetZone(zoneId):getBotCount() == 0, 'bot stayed in an empty zone')
     end)
 
-    it('arrive one at a time while a player is in the zone, up to the zone target', function()
+    it('arrive a few at once spread out of sight, then one at a time, up to the zone target', function()
         local zone = GetZone(zoneId)
         xi.test.world:setSetting('map.PLAYER_BOTS_ARRIVAL_INTERVAL', 5)
-        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 3)
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 5)
         assert(#zone:getBotEntrances() > 0, 'West Ronfaure has no arrival points')
 
-        for _ = 1, 6 do
+        -- The zone's arrival timer may still run from an earlier test (default interval 20 s).
+        for _ = 1, 25 do
             xi.test.world:skipTime(1)
+            if zone:getBotCount() > 0 then
+                break
+            end
         end
 
-        assert(zone:getBotCount() <= 2, 'bots arrived all at once')
-
-        for _ = 1, 60 do
-            xi.test.world:skipTime(1)
+        assert(zone:getBotCount() == 3, string.format('first wave brought %d bots, not 3', zone:getBotCount()))
+        local here = { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }
+        for _, bot in ipairs(zone:getBots()) do
+            local there = { x = bot:getXPos(), y = bot:getYPos(), z = bot:getZPos() }
+            assert(utils.distance(here, there) >= 60, 'a first-wave bot appeared in sight of the player')
         end
 
-        assert(zone:getBotCount() == 3, string.format('zone has %d bots, wanted the cap of 3', zone:getBotCount()))
+        local last = zone:getBotCount()
+        for _ = 1, 30 do
+            xi.test.world:skipTime(1)
+            assert(zone:getBotCount() - last <= 1, 'after the first wave bots did not arrive one at a time')
+            last = zone:getBotCount()
+        end
+
+        assert(zone:getBotCount() == 5, string.format('zone has %d bots, wanted the cap of 5', zone:getBotCount()))
     end)
 
     it('never populates instances, Dynamis or excluded zones', function()
@@ -277,8 +289,13 @@ describe('Player bots', function()
             local level = bot:getMainLvl()
             assert(level > low and level <= high + 4, string.format('level %d outside the zone band %d-%d', level, low, high))
 
+            -- Head and body may be swapped for another common piece (xi.bots.varyGear), but are never left empty.
             for slot, itemId in pairs(xi.bots.gearFor(bot:getMainJob(), level)) do
-                assert(bot:getEquipID(slot) == itemId, string.format('%s is missing item %d in slot %d', bot:getName(), itemId, slot))
+                if slot == xi.slot.HEAD or slot == xi.slot.BODY then
+                    assert(bot:getEquipID(slot) ~= 0, string.format('%s has nothing in slot %d', bot:getName(), slot))
+                else
+                    assert(bot:getEquipID(slot) == itemId, string.format('%s is missing item %d in slot %d', bot:getName(), itemId, slot))
+                end
             end
         end
 
@@ -425,6 +442,13 @@ describe('Player bots', function()
         return count
     end
 
+    -- A bot answers one invite a minute from the same player; let that minute pass before inviting again.
+    local function waitOutInviteLimit()
+        for _ = 1, 60 do
+            xi.test.world:skipTime(1)
+        end
+    end
+
     local function inviteBot(name)
         local bot = assert(spawnBot(name))
         player.actions:inviteToParty(bot)
@@ -468,6 +492,7 @@ describe('Player bots', function()
         assert(tellsFrom('Lowbot') == 1, 'bot did not say why it turned the invite down')
 
         player:setLevel(1)
+        waitOutInviteLimit()
         player.packets:clear()
         xi.test.world:setSetting('map.PLAYER_BOTS_PARTY_LEVEL_BELOW', 5)
         player.actions:inviteToParty(bot)
@@ -713,6 +738,7 @@ describe('Player bots', function()
         assert(tellsFrom('Seekbot') == 1, 'bot did not point at the seeker')
 
         seeker:setLevel(40)
+        waitOutInviteLimit()
         player.actions:inviteToParty(bot)
         waitForAnswer()
         assert(bot:getPartySize() == 2, 'a seeker of another level kept the bot out')
@@ -1028,5 +1054,325 @@ describe('Player bots', function()
             local attacked = target and target:getTarget() and target:getTarget():getID() == bot:getID()
             assert(not bot:isEngaged() or attacked, 'bot hunted with three fitting players in the zone')
         end
+    end)
+
+    -- Batch 4: chat and honesty
+
+    -- Text of every tell the player got from the named sender.
+    local function tellTexts(name)
+        local texts = {}
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x017 and packet.data[0x04] == 3 then
+                local sender = {}
+                for i = 0, 14 do
+                    local byte = packet.data[0x08 + i]
+                    if byte == 0 then
+                        break
+                    end
+
+                    sender[#sender + 1] = string.char(byte)
+                end
+
+                if table.concat(sender) == name then
+                    local text = {}
+                    for i = 0x17, packet.size - 1 do
+                        local byte = packet.data[i]
+                        if byte == 0 then
+                            break
+                        end
+
+                        text[#text + 1] = string.char(byte)
+                    end
+
+                    table.insert(texts, table.concat(text))
+                end
+            end
+        end
+
+        return texts
+    end
+
+    local function sendTell(name, message)
+        local size   = 0x15 + #message + 1
+        size         = size + (4 - size % 4) % 4
+        local packet = ffi.new('uint8_t[?]', size)
+        packet[0x04] = 3
+        for i = 1, #name do
+            packet[0x05 + i] = string.byte(name, i)
+        end
+
+        for i = 1, #message do
+            packet[0x14 + i] = string.byte(message, i)
+        end
+
+        player.packets:send(0x0B6, packet, size)
+    end
+
+    -- Packet 0x03D: add (mode 0) or remove (mode 1) a name on the player's blacklist.
+    local function blacklist(name, mode)
+        local packet = ffi.new('uint8_t[28]')
+        for i = 1, #name do
+            packet[0x07 + i] = string.byte(name, i)
+        end
+
+        packet[0x18] = mode
+        player.packets:send(0x03D, packet, ffi.sizeof(packet))
+    end
+
+    it('asks for an invite in a tell while it seeks a party', function()
+        assert(player:getZone()):spawnBot({ name = 'Seekbot', job = xi.job.WAR, level = 10, seeking = true,
+            x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() })
+
+        player.packets:clear()
+        sendTell('Seekbot', 'hi')
+        waitForAnswer()
+
+        local texts = tellTexts('Seekbot')
+        assert(#texts == 1, string.format('expected one tell, got %d', #texts))
+        assert(string.find(texts[1], 'invite'), 'seeking bot did not ask for an invite: ' .. texts[1])
+    end)
+
+    it('has 30 or more idle lines and repeats none within an hour', function()
+        local bot   = assert(spawnBot('Chatbot'))
+        local count = xi.bots.chatLineCount('idle_city')
+        assert(count >= 30, string.format('only %d idle lines', count))
+
+        local seen = {}
+        -- The first line names the bot's job and level; the rest are fixed text.
+        for _ = 1, count do
+            local line = assert(xi.bots.chatLine(bot, 'idle_city'))
+            assert(not seen[line], 'idle line said twice within an hour: ' .. line)
+            seen[line] = true
+        end
+    end)
+
+    it('answers only one invite a minute from the same player', function()
+        player:setLevel(40)
+        local bot = assert(spawnBot('Spambot'))
+
+        player.packets:clear()
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        assert(#tellTexts('Spambot') == 1, 'bot answered a second invite within a minute')
+
+        for _ = 1, 60 do
+            xi.test.world:skipTime(1)
+        end
+
+        player.actions:inviteToParty(bot)
+        waitForAnswer()
+        assert(#tellTexts('Spambot') == 2, 'bot ignored an invite after a minute')
+    end)
+
+    it('goes on the blacklist for the session and stops talking to that player', function()
+        assert(spawnBot('Rudebot'))
+        player.packets:clear()
+        blacklist('Rudebot', 0)
+
+        local added = false
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x042 and packet.data[0x18] == 0 then
+                added = true
+            end
+        end
+
+        assert(added, 'blacklisting a bot was not confirmed')
+
+        player.packets:clear()
+        sendTell('Rudebot', 'hello')
+        waitForAnswer()
+        assert(#tellTexts('Rudebot') == 0, 'a blacklisted bot still sent a tell')
+
+        -- The full list sent at zone-in carries the bot.
+        player.packets:clear()
+        player.packets:send(0x03C, ffi.new('uint8_t[28]'), 28)
+        local listed = false
+        for _, packet in ipairs(player.packets:getIncoming()) do
+            if packet.type == 0x041 and packet.data[0xF5] > 0 then
+                listed = true
+            end
+        end
+
+        assert(listed, 'the blacklist sent to the client left the bot out')
+
+        blacklist('Rudebot', 1)
+        player.packets:clear()
+        for _ = 1, 60 do
+            xi.test.world:skipTime(1)
+        end
+
+        sendTell('Rudebot', 'hello again')
+        waitForAnswer()
+        assert(#tellTexts('Rudebot') == 1, 'bot stayed quiet after it came off the blacklist')
+    end)
+
+    it('shows the bot note in the /check window', function()
+        local bot = assert(spawnBot('Notebot'))
+        player.packets:clear()
+
+        local packet = ffi.new('uint8_t[16]')
+        packet[4]    = bit.band(bot:getID(), 0xFF)
+        packet[5]    = bit.band(bit.rshift(bot:getID(), 8), 0xFF)
+        packet[6]    = bit.band(bit.rshift(bot:getID(), 16), 0xFF)
+        packet[7]    = bit.band(bit.rshift(bot:getID(), 24), 0xFF)
+        packet[8]    = bit.band(bot:getTargID(), 0xFF)
+        packet[9]    = bit.band(bit.rshift(bot:getTargID(), 8), 0xFF)
+        player.packets:send(0x0DD, packet, ffi.sizeof(packet))
+
+        local note = xi.settings.map.PLAYER_BOTS_CHECK_NOTE
+        local text
+        for _, incoming in ipairs(player.packets:getIncoming()) do
+            if incoming.type == 0x0CA then
+                local chars = {}
+                for i = 0x04, 0x04 + #note - 1 do
+                    chars[#chars + 1] = string.char(incoming.data[i])
+                end
+
+                text = table.concat(chars)
+            end
+        end
+
+        assert(text == note, string.format('/check note is %q, not %q', tostring(text), note))
+    end)
+
+    it('now and then cures a nearly dead stranger close by', function()
+        -- Paused bots start no hunts, so the healer stays free to help.
+        SetBotsPaused(true)
+        player:setLevel(20)
+        local bot = assert(player:getZone()):spawnBot({ name = 'Kindbot', job = xi.job.WHM, level = 20,
+            x = player:getXPos() + 3, y = player:getYPos(), z = player:getZPos() })
+
+        player:setHP(math.floor(player:getMaxHP() / 5))
+        local before = player:getHP()
+        for _ = 1, 90 do
+            xi.test.world:skipTime(1)
+            if player:getHP() > before then
+                break
+            end
+        end
+
+        assert(player:getHP() > before, 'a healer bot never cured a nearly dead stranger')
+        assert(bot:getPartySize() == 1, 'the bot joined a party to cure')
+        SetBotsPaused(false)
+    end)
+
+    -- Batch 5: presence and load
+
+    it('is hidden from a player who turned bots off, and never hunts near them', function()
+        player:setCharVar('BotsOptOut', 1)
+        local bot = assert(spawnBot('Hiddenbot'))
+        player.packets:clear()
+        for _ = 1, 5 do
+            player.actions:move(player:getXPos(), player:getYPos(), player:getZPos())
+            xi.test.world:skipTime(1)
+        end
+
+        assert(countIncoming(0x00D, bot:getID()) == 0, 'a bot was drawn for a player who turned bots off')
+
+        -- A mob 30 yalms from the opted-out player is off limits, though no player is within 25 of it.
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        player:setPos(mob:getXPos() + 30, mob:getYPos(), mob:getZPos())
+        local hunter = spawnHunter('Shybot', mob)
+        for _ = 1, 20 do
+            xi.test.world:skipTime(1)
+            assert(not (hunter:isEngaged() and hunter:getTarget() and hunter:getTarget():getID() == mob:getID()),
+                'bot hunted a mob near a player who turned bots off')
+        end
+
+        player:setCharVar('BotsOptOut', 0)
+    end)
+
+    it('keeps to the server-wide cap', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_TOTAL', 2)
+        assert(spawnBot('Capbota'))
+        assert(spawnBot('Capbotb'))
+        assert(spawnBot('Capbotc') == nil, 'a bot spawned over the server-wide cap')
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_TOTAL', 60)
+    end)
+
+    it('logs out when its play session ends, unless it is in a party', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_STAY_MIN', 0)
+        xi.test.world:setSetting('map.PLAYER_BOTS_STAY_MAX', 0)
+        player:setLevel(10)
+        local partyBot = inviteBot('Stayingbot')
+        assert(partyBot:getPartySize() == 2, 'party bot did not join')
+        assert(spawnBot('Leavingbot'))
+
+        xi.test.world:skipTime(2)
+
+        local names = {}
+        for _, bot in ipairs(GetZone(zoneId):getBots()) do
+            names[bot:getName()] = true
+        end
+
+        assert(not names.Leavingbot, 'a bot stayed past its play session')
+        assert(names.Stayingbot, 'a party bot logged out in the middle of its party')
+        xi.test.world:setSetting('map.PLAYER_BOTS_STAY_MIN', 30)
+        xi.test.world:setSetting('map.PLAYER_BOTS_STAY_MAX', 120)
+    end)
+
+    it('aims for fewer bots in a city', function()
+        -- Only the zone's id and type are read; the test world does not load cities.
+        local city =
+        {
+            getID       = function()
+                return xi.zone.SOUTHERN_SAN_DORIA
+            end,
+
+            getTypeMask = function()
+                return xi.zoneType.CITY
+            end,
+        }
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 12)
+        local target = xi.bots.targetCount(city)
+        assert(target >= 4 and target <= 6, string.format('a city aims for %d bots', target))
+    end)
+
+    it('swaps only head or body pieces the job can wear', function()
+        for _ = 1, 300 do
+            local job   = math.random(xi.job.WAR, xi.job.SMN)
+            local level = math.random(1, 75)
+            local base  = xi.bots.gearFor(job, level)
+            local gear  = xi.bots.varyGear(job, level, base)
+            for slot, itemId in pairs(gear) do
+                if itemId ~= base[slot] then
+                    assert(slot == xi.slot.HEAD or slot == xi.slot.BODY, string.format('slot %d was swapped', slot))
+                    assert(CanBotWear(itemId, job, level, slot), string.format('job %d level %d got item %d', job, level, itemId))
+                end
+            end
+        end
+    end)
+
+    -- Batch 6: GM tools
+
+    it('lists live bots with what they are doing, for whois and the admin site', function()
+        player:setLevel(10)
+        local bot = inviteBot('Whoisbot')
+        local found
+        for _, info in ipairs(GetBotList()) do
+            if info.name == 'Whoisbot' then
+                found = info
+            end
+        end
+
+        assert(found, 'GetBotList left out a live bot')
+        assert(found.id == bot:getID() and found.zoneId == zoneId, 'GetBotList has the wrong id or zone')
+        assert(found.state == 'party' and found.partyWith == player:getName(), 'GetBotList has the wrong state: ' .. found.state)
+    end)
+
+    it('stops arrivals and hunting while paused', function()
+        SetBotsPaused(true)
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 5)
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        local bot = spawnHunter('Pausebot', mob)
+        for _ = 1, 30 do
+            xi.test.world:skipTime(1)
+            assert(not (bot:isEngaged() and bot:getTarget() and bot:getTarget():getID() == mob:getID()), 'a paused bot started a hunt')
+        end
+
+        assert(GetZone(zoneId):getBotCount() == 1, 'bots arrived while paused')
+        SetBotsPaused(false)
     end)
 end)

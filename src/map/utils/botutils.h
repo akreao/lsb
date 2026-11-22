@@ -185,4 +185,60 @@ void Chat(CCharEntity* PBot, const std::string& event, ChatChannel channel, CCha
 // Now and then a free bot in a city says something (map.PLAYER_BOTS_SAY_INTERVAL per zone).
 void IdleChat(CZone* PZone);
 
+// The char var a real player sets with `!bots off` (or the website): bots are not drawn for them, never talk to
+// them and never hunt near them (custom).
+constexpr auto OptOutVar = "BotsOptOut";
+
+// True when the player wants nothing from this bot: bots turned off, or the bot is on their blacklist.
+auto IgnoresBot(const CCharEntity* PChar, const CCharEntity* PBot) -> bool;
+
+// /blacklist for bots, which have no database row: kept in memory until the player logs out. Add returns the id
+// the client gets for the entry, 0 when there is no live bot of that name, it is listed already or the list is
+// full; remove returns the entry's id, or 0 when it was not listed.
+auto BlacklistBot(CCharEntity* PChar, const std::string& name) -> uint32;
+auto UnblacklistBot(const CCharEntity* PChar, const std::string& name) -> uint32;
+
+// The bots on the player's blacklist (id, name), for the full list sent at zone-in.
+auto BlacklistedBots(const CCharEntity* PChar) -> std::vector<std::pair<uint32, std::string>>;
+
+// The player logged out: forget their bot blacklist.
+void ForgetPlayer(uint32 charId);
+
+// True when the real player turned bots off (`!bots off`): bots are not drawn for them (SpawnPCs).
+auto OptedOut(const CCharEntity* PChar) -> bool;
+
+// Bots alive on this map process (map.PLAYER_BOTS_MAX_TOTAL caps it).
+auto GetLiveBotCount() -> std::size_t;
+
+// A random point on the zone's navmesh, reachable from an entrance and out of every real player's sight: where
+// the first bots of a newly visited zone already are, as if they had been out there all along.
+auto ScatterPoint(CZone* PZone) -> Maybe<position_t>;
+
+// The bot logs out on its own (its play session ran out): the Lua side may keep it as a regular who comes back.
+void OnLogout(CCharEntity* PBot);
+
+// What a live bot is doing, for GM tools (`!bot whois`, `!bot all`) and later the admin site.
+struct BotInfo
+{
+    uint32      id{ 0 };
+    std::string name;
+    uint16      zoneId{ 0 };
+    std::string zoneName;
+    uint8       mainJob{ 0 };
+    uint8       mainLevel{ 0 };
+    uint8       subJob{ 0 };
+    uint8       subLevel{ 0 };
+    std::string state;     // "dead", "fighting", "hunting", "party", "resting", "seeking", "roaming"
+    std::string partyWith; // the party leader's name, when in a party
+    position_t  pos{};
+    uint32      onlineSeconds{ 0 };
+};
+
+// Every live bot on this map process.
+auto ListBots() -> std::vector<BotInfo>;
+
+// `!bot pause`: no new bots arrive anywhere and no bot starts a hunt (fights under way finish; parties go on).
+void SetPaused(bool paused);
+auto IsPaused() -> bool;
+
 } // namespace botutils

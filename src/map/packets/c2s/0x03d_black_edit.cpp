@@ -24,6 +24,7 @@
 #include "packets/c2s/validation.h"
 #include "packets/s2c/0x042_black_edit.h"
 #include "utils/blacklistutils.h"
+#include "utils/botutils.h"
 #include "utils/charutils.h"
 
 namespace
@@ -50,7 +51,16 @@ void GP_CLI_COMMAND_BLACK_EDIT::process(MapSession* PSession, CCharEntity* PChar
     const auto [charid, accid] = charutils::getCharIdAndAccountIdFromName(name);
     if (!charid)
     {
-        sendFailPacket(PChar);
+        // Player bots have no character row; their entries live in memory for this session (custom).
+        const auto mode  = static_cast<GP_CLI_COMMAND_BLACK_EDIT_MODE>(this->Mode);
+        const auto botId = mode == GP_CLI_COMMAND_BLACK_EDIT_MODE::Add ? botutils::BlacklistBot(PChar, name) : botutils::UnblacklistBot(PChar, name);
+        if (botId == 0)
+        {
+            sendFailPacket(PChar);
+            return;
+        }
+
+        PChar->pushPacket<GP_SERV_COMMAND_BLACK_EDIT>(botId, name, mode == GP_CLI_COMMAND_BLACK_EDIT_MODE::Add ? GP_SERV_COMMAND_BLACK_EDIT_MODE::Add : GP_SERV_COMMAND_BLACK_EDIT_MODE::Delete);
         return;
     }
 

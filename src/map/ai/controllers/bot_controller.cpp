@@ -87,6 +87,17 @@ constexpr auto LeaderWait = 2min;
 // A zoned-in leader has no party until its party reloads from the database; this long without one means it left.
 constexpr auto PartyReloadWait = 10s;
 
+// A solo bot now and then cures a nearly dead stranger or raises a dead one close by (custom). It checks this
+// often, acts on one check in GoodDeedOdds, and leaves the same player be for a while after helping.
+constexpr auto  GoodDeedCheck      = 5s;
+constexpr int   GoodDeedOdds       = 2;
+constexpr float GoodDeedRange      = 20.0f;
+constexpr uint8 GoodDeedHPP        = 30;
+constexpr auto  GoodDeedRepeatWait = 2min;
+
+// More invites from the same player within this time get no answer.
+constexpr auto InviteRepeatWait = 60s;
+
 // Main jobs a party bot leaves the tanking to, and the ones it protects when it does tank.
 auto isTankJob(const xi::Job job) -> bool
 {
@@ -127,6 +138,12 @@ CBotController::CBotController(CCharEntity* PBot)
 , m_stopUntil(timer::now() + std::chrono::seconds(xirand::GetRandomNumber(5, 20)))
 , m_lastLevel(PBot->GetMLevel())
 {
+    // Bots play for a while and log out, as people do (custom); new ones come in their place.
+    const auto stayMin = settings::get<uint16>("map.PLAYER_BOTS_STAY_MIN");
+    const auto stayMax = std::max(stayMin, settings::get<uint16>("map.PLAYER_BOTS_STAY_MAX"));
+    m_onlineSince      = timer::now();
+    m_logoutAt         = m_onlineSince + std::chrono::minutes(xirand::GetRandomNumber<int32>(stayMin, stayMax + 1));
+
     RefreshSkills();
 }
 
@@ -270,6 +287,17 @@ auto CBotController::WantsRespawn() const -> bool
 {
     const auto wait = std::chrono::seconds(settings::get<uint16>("map.PLAYER_BOTS_RAISE_WAIT"));
     return PBot->isDead() && m_deathTime != timer::time_point{} && timer::now() - m_deathTime >= wait;
+}
+
+auto CBotController::OnlineSince() const -> timer::time_point
+{
+    return m_onlineSince;
+}
+
+auto CBotController::WantsLogout() const -> bool
+{
+    return timer::now() >= m_logoutAt && PBot->isAlive() && PBot->PParty == nullptr && !PBot->PAI->IsEngaged() &&
+           PBot->InvitePending.entity.UniqueNo == 0;
 }
 
 void CBotController::SetHome(const position_t& home)
@@ -507,9 +535,102 @@ void CBotController::AnswerTell()
     const uint32 senderId = m_tellFrom;
     m_tellFrom            = 0;
 
-    if (auto* PSender = zoneutils::GetChar(senderId))
+    auto* PSender = zoneutils::GetChar(senderId);
+    if (PSender == nullptr)
     {
-        botutils::Chat(PBot, "tell", botutils::ChatChannel::Tell, PSender);
+        return;
+    }
+
+    // What the bot says depends on what it is doing; a bot seeking a party asks for an invite.
+    std::string event = "tell";
+    if (PBot->PParty != nullptr)
+    {
+        event = "tell_party";
+    }
+    else if (m_hunting || PBot->PAI->IsEngaged())
+    {
+        event = "tell_hunting";
+    }
+    else if (PBot->playerConfig.InviteFlg)
+    {
+        event = "tell_seeking";
+    }
+    else if (PBot->loc.zone != nullptr && (PBot->loc.zone->GetTypeMask() & xi::ZoneType::City) != xi::ZoneType::Unknown)
+    {
+        event = "tell_town";
+    }
+
+    botutils::Chat(PBot, event, botutils::ChatChannel::Tell, PSender);
+}
+
+auto CBotController::TakeInvite(const uint32 inviterId) -> bool
+{
+    // One invite a minute from each player; more get no answer at all, so nobody can spam a bot's tells.
+    const auto now = timer::now();
+    std::erase_if(m_lastInvite, [now](const auto& entry)
+                  {
+                      return now - entry.second >= InviteRepeatWait;
+                  });
+
+    if (m_lastInvite.contains(inviterId))
+    {
+        return false;
+    }
+
+    m_lastInvite[inviterId] = now;
+    return true;
+}
+
+void CBotController::HelpStranger(const timer::time_point tick)
+{
+    if (tick < m_nextGoodDeed || PBot->loc.zone == nullptr)
+    {
+        return;
+    }
+
+    m_nextGoodDeed = tick + GoodDeedCheck;
+    std::erase_if(m_helped, [tick](const auto& entry)
+                  {
+                      return tick - entry.second >= GoodDeedRepeatWait;
+                  });
+
+    // Now and then, not every time: a passer-by, not a bodyguard.
+    if (xirand::GetRandomNumber(GoodDeedOdds) != 0)
+    {
+        return;
+    }
+
+    const auto raise = m_spells->GetBestAvailable(SPELLFAMILY_RAISE);
+    const auto cure  = m_spells->GetBestAvailable(SPELLFAMILY_CURE);
+    if (!raise && !cure)
+    {
+        return;
+    }
+
+    for (auto* PPlayer : botutils::RealPlayers(PBot->loc.zone))
+    {
+        if (m_helped.contains(PPlayer->id) || (PBot->PParty != nullptr && PPlayer->PParty == PBot->PParty) ||
+            botutils::IgnoresBot(PPlayer, PBot) || ::distance(PBot->loc.p, PPlayer->loc.p) > GoodDeedRange)
+        {
+            continue;
+        }
+
+        Maybe<SpellID> spell;
+        if (PPlayer->isDead() && raise && !PPlayer->m_hasRaise)
+        {
+            spell = raise;
+        }
+        else if (PPlayer->isAlive() && cure && PPlayer->GetHPP() < GoodDeedHPP)
+        {
+            spell = cure;
+        }
+
+        if (spell && Cast(PPlayer->entityId(), *spell))
+        {
+            ShowDebugFmt("Player bots: {} helps {} in passing", PBot->getName(), PPlayer->getName());
+            m_helped[PPlayer->id] = tick;
+            return;
+        }
     }
 }
 
@@ -759,6 +880,15 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
     if (isBusy(PBot))
     {
         co_return;
+    }
+
+    if (!m_prey.isSet())
+    {
+        HelpStranger(tick);
+        if (isBusy(PBot))
+        {
+            co_return;
+        }
     }
 
     if (m_prey.isSet())
