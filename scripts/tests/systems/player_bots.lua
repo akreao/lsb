@@ -25,6 +25,10 @@ describe('Player bots', function()
         })
     end
 
+    local function zoneSpawnAt(name, x, y, z)
+        return assert(player:getZone()):spawnBot({ name = name, job = xi.job.WAR, level = 10, x = x, y = y, z = z })
+    end
+
     local function countIncoming(packetType, uniqueNo)
         local count = 0
         for _, packet in ipairs(player.packets:getIncoming()) do
@@ -591,5 +595,39 @@ describe('Player bots', function()
         moveAndWait()
 
         assert(countIncoming(0x00D, other:getID()) > 0, 'the real player was not drawn while bots held every slot')
+    end)
+
+    it('heads toward real players when none can see it', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_MAX_HUNTERS', 0)
+        local here = { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }
+
+        -- Somewhere on the navmesh well out of draw range: a mob's spot 60 to 120 yalms away.
+        local spot
+        for _, mob in ipairs(assert(player:getZone()):getMobs()) do
+            local there = { x = mob:getXPos(), y = mob:getYPos(), z = mob:getZPos() }
+            local range = utils.distance(here, there)
+            if not spot and mob:isSpawned() and range > 60 and range < 120 then
+                spot = there
+            end
+        end
+
+        assert(spot, 'no spot 60 to 120 yalms from the player')
+        local bot = assert(xi.bots.spawn(assert(player:getZone()), spot, { name = 'Drifter', job = xi.job.WAR, level = 10 }))
+
+        local closest = math.huge
+        for _ = 1, 90 do
+            xi.test.world:skipTime(1)
+            closest = math.min(closest, utils.distance(here, { x = bot:getXPos(), y = bot:getYPos(), z = bot:getZPos() }))
+        end
+
+        assert(closest < 45, string.format('bot stayed %d yalms away, out of draw range', math.floor(closest)))
+    end)
+
+    it('stands on the ground, not above it', function()
+        local bot = assert(zoneSpawnAt('Groundbot', player:getXPos() + 1, player:getYPos() - 1.5, player:getZPos()))
+        xi.test.world:skipTime(1)
+
+        local gap = math.abs(bot:getYPos() - player:getYPos())
+        assert(gap < 0.5, string.format('bot stands %.2f yalms off the floor the player stands on', gap))
     end)
 end)

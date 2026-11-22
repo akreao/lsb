@@ -48,6 +48,7 @@
 #include "party.h"
 #include "spell.h"
 #include "treasure_pool.h"
+#include "ximesh/ximesh.h"
 #include "zone.h"
 #include "zoneutils.h"
 
@@ -258,6 +259,24 @@ auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&
     return entrances;
 }
 
+void SnapToGround(CZone* PZone, position_t& pos)
+{
+    if (PZone == nullptr || PZone->xiMesh() == nullptr)
+    {
+        return;
+    }
+
+    // Down is +y. Look from a little above the feet to a few yalms below them, so a ceiling overhead is not hit.
+    constexpr float Above = 1.5f;
+    constexpr float Below = 4.0f;
+
+    const auto hit = PZone->xiMesh()->getPositionInfo(Vector3{ pos.x, pos.y, pos.z }, YOffsets{ -Above, Above + Below });
+    if (hit.has_value() && !hit->barrier)
+    {
+        pos.y = pos.y - Above + hit->fraction * (Above + Below);
+    }
+}
+
 auto MayHunt(CCharEntity* PBot) -> bool
 {
     auto* PZone = PBot->loc.zone;
@@ -435,7 +454,8 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
 
     PRaw->playerConfig.InviteFlg = spec.seeking;
 
-    PRaw->loc.p           = spec.pos;
+    PRaw->loc.p = spec.pos;
+    SnapToGround(PZone, PRaw->loc.p);
     PRaw->loc.destination = PZone->GetID();
     PRaw->status          = xi::Status::Normal;
     PRaw->animation       = xi::Animation::None;

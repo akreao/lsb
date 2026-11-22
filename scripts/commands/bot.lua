@@ -22,7 +22,7 @@ local function usage(player, msg)
         player:printToPlayer(msg)
     end
 
-    player:printToPlayer('!bot spawn (count) | !bot make <name> (job) (level) | !bot clear | !bot count')
+    player:printToPlayer('!bot spawn (count) | !bot make <name> (job) (level) | !bot clear | !bot count | !bot list')
 end
 
 commandObj.onTrigger = function(player, action, name, job, level)
@@ -83,6 +83,16 @@ commandObj.onTrigger = function(player, action, name, job, level)
         player:printToPlayer('Cleared all bots in this zone.')
     elseif action == 'count' then
         player:printToPlayer(string.format('Bots in this zone: %d', zone:getBotCount()))
+    elseif action == 'list' then
+        local bots = zone:getBots()
+        player:printToPlayer(string.format('Bots in this zone: %d', #bots))
+        for _, bot in ipairs(bots) do
+            local there = { x = bot:getXPos(), y = bot:getYPos(), z = bot:getZPos() }
+            player:printToPlayer(string.format('%s %s%d: %d yalms away at (%d, %d, %d)%s%s', bot:getName(),
+                jobNames[bot:getMainJob()], bot:getMainLvl(), math.floor(utils.distance(here, there)),
+                math.floor(there.x), math.floor(there.y), math.floor(there.z),
+                bot:isEngaged() and ', fighting' or '', bot:getPartySize() > 1 and ', in a party' or ''))
+        end
     else
         usage(player)
     end

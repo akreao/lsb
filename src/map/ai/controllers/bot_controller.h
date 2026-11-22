@@ -96,6 +96,9 @@ private:
     void BackToSolo();
 
     auto FindPrey() -> CMobEntity*;
+
+    // Moves the bot's home near a real player in its zone, so bots are seen where people are.
+    void Rehome(timer::time_point tick);
     auto ShouldRest() const -> bool;
     auto IsResting() const -> bool;
     void StartResting();
@@ -114,6 +117,7 @@ private:
     bool              m_fleeing{ false };
     timer::time_point m_nextHuntCheck{};
     timer::time_point m_nextRoam{};
+    timer::time_point m_nextRehome{};
     timer::time_point m_deathTime{};
 
     timer::time_point m_inviteAt{};

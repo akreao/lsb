@@ -2105,6 +2105,9 @@ auto CZoneEntities::botTick(CCharEntity* PBot, timer::time_point tick) -> Task<v
 
     co_await PBot->PAI->Tick(tick);
 
+    // Paths follow the navmesh, which is not quite the floor; keep the bot's feet on the ground.
+    botutils::SnapToGround(m_zone, PBot->loc.p);
+
     if (PBot->PTreasurePool)
     {
         PBot->PTreasurePool->checkItems(tick);

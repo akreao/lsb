@@ -56,6 +56,12 @@ constexpr float EngageRange      = 20.0f;
 constexpr float CasterRange      = 10.0f;
 constexpr float RoamRadius       = 20.0f;
 
+// A bot no real player can see (the client draws other characters within 45 yalms) heads toward one now and then,
+// ending up this far from them: close enough to be seen, not on top of them.
+constexpr float SeenRange    = 45.0f;
+constexpr float RehomeMinGap = 15.0f;
+constexpr float RehomeMaxGap = 35.0f;
+
 // In a party: how close the bot keeps to its leader, how far it runs to join a fight, and when it warps.
 constexpr float FollowDistance = 3.0f;
 constexpr float AssistRange    = 30.0f;
@@ -75,6 +81,7 @@ CBotController::CBotController(CCharEntity* PBot)
 , m_spells(std::make_unique<CMobSpellContainer>(PBot))
 , m_gambits(std::make_unique<gambits::CGambitsContainer>(PBot, this))
 , m_home(PBot->loc.p)
+, m_nextRehome(timer::now() + std::chrono::seconds(xirand::GetRandomNumber(2, 8)))
 {
     RefreshSkills();
 }
@@ -611,6 +618,11 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
         }
     }
 
+    if (tick >= m_nextRehome)
+    {
+        Rehome(tick);
+    }
+
     if (!PBot->PAI->PathFind->IsFollowingPath() && tick >= m_nextRoam)
     {
         m_nextRoam = tick + std::chrono::seconds(xirand::GetRandomNumber(10, 30));
@@ -620,6 +632,54 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
     PBot->PAI->PathFind->FollowPath(tick);
 
     co_return;
+}
+
+void CBotController::Rehome(const timer::time_point tick)
+{
+    m_nextRehome = tick + std::chrono::seconds(xirand::GetRandomNumber(120, 300));
+
+    if (PBot->loc.zone == nullptr)
+    {
+        return;
+    }
+
+    std::vector<CCharEntity*> players;
+    bool                      seen = false;
+    PBot->loc.zone->ForEachChar(
+        [&](CCharEntity* PChar)
+        {
+            if (PChar->status == xi::Status::Disappear || PChar->m_isGMHidden)
+            {
+                return;
+            }
+
+            players.push_back(PChar);
+            seen = seen || ::distance(PChar->loc.p, PBot->loc.p) < SeenRange;
+        });
+
+    if (players.empty())
+    {
+        return;
+    }
+
+    // Already where people can see it: now and then stroll somewhere else nearby, so it never stands at one spot.
+    if (seen)
+    {
+        if (xirand::GetRandomNumber(3) == 0 && PBot->PAI->PathFind->RoamAround(PBot->loc.p, RoamRadius * 3, 1, 3))
+        {
+            m_home = PBot->PAI->PathFind->GetDestination();
+        }
+
+        return;
+    }
+
+    const auto* PPlayer = players[xirand::GetRandomNumber(players.size())];
+    const float gap     = xirand::GetRandomNumber(RehomeMinGap, RehomeMaxGap);
+    if (PBot->PAI->PathFind->PathAround(PPlayer->loc.p, gap))
+    {
+        m_home     = PPlayer->loc.p;
+        m_nextRoam = tick + std::chrono::seconds(xirand::GetRandomNumber(20, 40));
+    }
 }
 
 auto CBotController::FindPrey() -> CMobEntity*

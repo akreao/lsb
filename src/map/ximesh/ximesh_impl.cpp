@@ -999,6 +999,7 @@ auto XiMeshImpl::rayIntersectCellHitInfo(const Vector3& start, const Vector3& en
                     closestHit       = RayHitInfo{
                         .intersection = intersection,
                         .distanceSq   = distanceSq,
+                        .fraction     = std::sqrt(distanceSq / std::max(oDiff.magnitudeSquared(), 1e-12f)),
                         .placement    = &place,
                         .type         = static_cast<xi::TerrainType>(meta.material),
                         .barrier      = meta.barrier != 0,

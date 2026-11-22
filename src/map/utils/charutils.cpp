@@ -4537,6 +4537,12 @@ void DistributeGil(CCharEntity* PChar, CMobEntity* PMob)
 {
     TracyZoneScoped;
 
+    // A solo player bot has no purse (memory only); its kills drop no gil.
+    if (PChar->isBot() && PChar->PParty == nullptr)
+    {
+        return;
+    }
+
     // work out the amount of gil to give (guessed; replace with testing)
     uint32 gil    = PMob->GetRandomGil();
     uint32 gBonus = 0;

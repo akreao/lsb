@@ -83,6 +83,10 @@ auto GetSpec(uint32 botId) -> const BotSpec*;
 // Where players arrive in the zone: the landing points of the zone lines that lead into it.
 auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&;
 
+// Puts the position on the zone's floor (its collision mesh), as a player's own client does. Navmesh heights,
+// which paths follow, can sit a little above or below the floor; other clients draw a PC at the y it is given.
+void SnapToGround(CZone* PZone, position_t& pos);
+
 // True when the bot may pick a fight: the zone has fewer hunting bots than its cap
 // (map.PLAYER_BOTS_MAX_HUNTERS, one less for each real player fighting there).
 auto MayHunt(CCharEntity* PBot) -> bool;
