@@ -389,6 +389,21 @@ auto CLuaZone::getFloorHeight(const float x, const float from, const float z, co
     return sol::nullopt;
 }
 
+// Whether a player standing at `from` could see a body at `to` past the zone's geometry (2 yalms up at both ends,
+// as CBaseEntity::CanSeeTarget looks). For tests.
+auto CLuaZone::isInSight(const sol::table& from, const sol::table& to) -> bool
+{
+    constexpr float EyeHeight = 2.0f;
+    const auto*     PXiMesh   = m_pLuaZone->xiMesh();
+    if (PXiMesh == nullptr)
+    {
+        return true;
+    }
+
+    return !PXiMesh->rayIntersect(Vector3{ from.get<float>("x"), from.get<float>("y") - EyeHeight, from.get<float>("z") },
+                                  Vector3{ to.get<float>("x"), to.get<float>("y") - EyeHeight, to.get<float>("z") });
+}
+
 auto CLuaZone::getBots() -> sol::table
 {
     auto table = lua.create_table();
@@ -548,6 +563,7 @@ void CLuaZone::Register()
     SOL_REGISTER("getGroundHeight", CLuaZone::getGroundHeight);
     SOL_REGISTER("getNavMeshHeight", CLuaZone::getNavMeshHeight);
     SOL_REGISTER("getFloorHeight", CLuaZone::getFloorHeight);
+    SOL_REGISTER("isInSight", CLuaZone::isInSight);
 
     SOL_REGISTER("getSoloBattleMusic", CLuaZone::getSoloBattleMusic);
     SOL_REGISTER("getPartyBattleMusic", CLuaZone::getPartyBattleMusic);

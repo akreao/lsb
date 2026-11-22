@@ -228,6 +228,11 @@ auto GetLiveBotCount() -> std::size_t;
 // the first bots of a newly visited zone already are, as if they had been out there all along.
 auto ScatterPoint(CZone* PZone) -> Maybe<position_t>;
 
+// Where a party bot that fell far behind its leader in the same zone turns up (custom): a navmesh point 15 to 70
+// yalms from the leader with a walk to it that climbs no ledge. With hiddenOnly, only a point no real player can see
+// (beyond draw range, or behind terrain), so the bot runs in from out of sight as if it had been on its way.
+auto CatchUpPoint(CZone* PZone, const CCharEntity* PLeader, bool hiddenOnly) -> Maybe<position_t>;
+
 // The bot logs out on its own (its play session ran out): the Lua side may keep it as a regular who comes back.
 void OnLogout(CCharEntity* PBot);
 

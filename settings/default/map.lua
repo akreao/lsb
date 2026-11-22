@@ -365,6 +365,15 @@ xi.settings.map =
     -- At most this many bots in one party, so bots fill gaps and people still need people.
     PLAYER_BOTS_MAX_PER_PARTY = 2,
 
+    -- A party bot farther than this many yalms from its leader in the same zone (invited from across the zone, or
+    -- left behind) turns up 15 to 70 yalms from the leader instead of running all the way, at a spot no player can
+    -- see; with no such spot it keeps running and looks again. 0 = always run.
+    PLAYER_BOTS_CATCH_UP_DISTANCE = 100,
+
+    -- A party bot more than 20 yalms from its leader that has not got anywhere for this many seconds (no way through)
+    -- turns up near the leader, in sight if it must. 0 = never; it leaves the party after a minute stuck.
+    PLAYER_BOTS_CATCH_UP_STUCK = 10,
+
     -- Bots say a few canned lines: party greetings and goodbyes, refusals, tell replies, rare city chatter.
     PLAYER_BOTS_CHAT = true,
 

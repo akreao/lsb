@@ -78,8 +78,14 @@ constexpr float FollowSlack    = 2.0f;
 constexpr uint8 PartyRestMPP = 30;
 constexpr float AssistRange  = 30.0f;
 
-// A bot that stays farther than AssistRange from its leader this long (no way through) leaves the party.
-constexpr auto ReachTimeout = 60s;
+// A bot following its leader that moves less than ProgressStep this long, beyond AssistRange, has no way
+// through and leaves the party. Following that far, it counts as stuck beyond StuckRange.
+constexpr auto  ReachTimeout = 60s;
+constexpr float ProgressStep = 2.0f;
+constexpr float StuckRange   = 20.0f;
+
+// How often a far bot looks for a point near its leader to turn up at, when the last look found none.
+constexpr auto CatchUpRetry = 2s;
 
 // How long a party bot waits for a leader who left its zone to show up somewhere (zoning, a Mog House visit).
 constexpr auto LeaderWait = 2min;
@@ -686,6 +692,40 @@ void CBotController::LeaderGone(const timer::time_point tick)
     }
 }
 
+auto CBotController::CatchUp(const timer::time_point tick, const CCharEntity* PLeader, const float range, const bool noPath) -> bool
+{
+    const float farRange = settings::get<float>("map.PLAYER_BOTS_CATCH_UP_DISTANCE");
+    const auto  stuckFor = std::chrono::seconds(settings::get<uint16>("map.PLAYER_BOTS_CATCH_UP_STUCK"));
+    const bool  far      = farRange > 0.0f && range > farRange;
+    const bool  stuck    = noPath || (stuckFor.count() > 0 && range > StuckRange && tick - m_progressAt >= stuckFor);
+    if ((!far && !stuck) || (!noPath && tick < m_nextCatchUp))
+    {
+        return false;
+    }
+
+    m_nextCatchUp = tick + CatchUpRetry;
+
+    // Out of sight when it can: a far bot that finds no such point keeps running and looks again; a stuck one turns
+    // up in sight rather than stand there.
+    auto point = botutils::CatchUpPoint(PBot->loc.zone, PLeader, true);
+    if (!point && stuck)
+    {
+        point = botutils::CatchUpPoint(PBot->loc.zone, PLeader, false);
+    }
+
+    if (!point)
+    {
+        return false;
+    }
+
+    ShowDebugFmt("Player bots: {} catches up with {} ({:.0f} yalms behind{})", PBot->getName(), PLeader->getName(), range, stuck ? ", stuck" : "");
+    PBot->PAI->PathFind->WarpTo(*point, 0.0f);
+    PBot->PAI->PathFind->LookAt(PLeader->loc.p);
+    m_progressAt   = tick;
+    m_progressSpot = PBot->loc.p;
+    return true;
+}
+
 void CBotController::LeaveParty()
 {
     ShowDebugFmt("Player bots: {} leaves its party (leader gone or out of reach)", PBot->getName());
@@ -699,7 +739,6 @@ void CBotController::BackToSolo()
     m_inParty         = false;
     m_partyLeaderId   = 0;
     m_leaderGoneSince = {};
-    m_farSince        = {};
     m_home            = PBot->loc.p;
     m_nextHuntCheck   = timer::now() + 10s;
     m_stopUntil       = timer::now() + std::chrono::seconds(xirand::GetRandomNumber(10, 30));
@@ -759,32 +798,40 @@ auto CBotController::PartyTick(const timer::time_point tick) -> Task<void>
         co_return;
     }
 
+    // Headway counts only while following close: a rest or a fight in between starts the count again.
+    const float range = ::distance(PBot->loc.p, PLeader->loc.p);
+    if (range <= StuckRange || tick - m_lastFollowTick > 2s || ::distance(PBot->loc.p, m_progressSpot) >= ProgressStep)
+    {
+        m_progressAt   = tick;
+        m_progressSpot = PBot->loc.p;
+    }
+
+    m_lastFollowTick = tick;
+
+    // Far behind (invited from across the zone, or left behind): turn up near the leader rather than run all the way.
+    // It stands where it turned up for this tick and sets off on the next.
+    if (!isBusy(PBot) && CatchUp(tick, PLeader, range, false))
+    {
+        co_return;
+    }
+
     // Follow the leader, keeping a little space: run there at any distance, as a player would.
     // A path around the leader stops a little short of FollowDistance, so only start one past FollowSlack, or the
     // bot would path again every tick and never stand still long enough to cure or buff.
-    const float range = ::distance(PBot->loc.p, PLeader->loc.p);
     if (range > FollowDistance + FollowSlack && !isBusy(PBot))
     {
         if (!PBot->PAI->PathFind->IsFollowingPath() || ::distance(PBot->PAI->PathFind->GetDestination(), PLeader->loc.p) > FollowDistance + 2.0f)
         {
-            // No path at all (the leader stands off the navmesh): warping is the only way there.
-            if (!PBot->PAI->PathFind->PathAround(PLeader->loc.p, FollowDistance, PATHFLAG_RUN))
+            // No path at all (the leader stands off the navmesh): turn up close by, or on the leader as a last resort.
+            if (!PBot->PAI->PathFind->PathAround(PLeader->loc.p, FollowDistance, PATHFLAG_RUN) && !CatchUp(tick, PLeader, range, true))
             {
                 PBot->PAI->PathFind->WarpTo(PLeader->loc.p);
             }
         }
     }
 
-    // Stuck out of reach for a minute: give up on the party rather than stand there.
-    if (range <= AssistRange)
-    {
-        m_farSince = {};
-    }
-    else if (m_farSince == timer::time_point{})
-    {
-        m_farSince = tick;
-    }
-    else if (tick - m_farSince >= ReachTimeout)
+    // Out of reach and getting nowhere for a minute: give up on the party rather than stand there.
+    if (range > AssistRange && tick - m_progressAt >= ReachTimeout)
     {
         LeaveParty();
         co_return;

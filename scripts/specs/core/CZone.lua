@@ -231,6 +231,14 @@ end
 function CZone:getFloorHeight(x, from, z, to)
 end
 
+-- Whether a player at `from` could see a body at `to` past the zone's geometry (both 2 yalms up). For tests.
+---@nodiscard
+---@param from table
+---@param to table
+---@return boolean
+function CZone:isInSight(from, to)
+end
+
 ---@nodiscard
 ---@return integer
 function CZone:getSoloBattleMusic()

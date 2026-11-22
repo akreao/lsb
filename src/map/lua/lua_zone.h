@@ -80,6 +80,7 @@ public:
     auto getGroundHeight(float x, float top, float z, float bottom) -> sol::optional<float>;
     auto getNavMeshHeight(float x, float y, float z) -> sol::optional<float>;
     auto getFloorHeight(float x, float from, float z, float to) -> sol::optional<float>;
+    auto isInSight(const sol::table& from, const sol::table& to) -> bool;
 
     auto getSoloBattleMusic();
     auto getPartyBattleMusic();

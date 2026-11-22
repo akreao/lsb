@@ -115,6 +115,10 @@ private:
     // the party when it does not come back (logged out, left the party, or somewhere bots cannot go).
     void LeaderGone(timer::time_point tick);
 
+    // Far behind its leader, or making no headway toward it: turns up near the leader at once, out of sight when it
+    // can (custom). Returns true when it moved.
+    auto CatchUp(timer::time_point tick, const CCharEntity* PLeader, float range, bool noPath) -> bool;
+
     // Leaves the party on its own (leader logged out, or cannot be reached), saying goodbye.
     void LeaveParty();
 
@@ -173,7 +177,10 @@ private:
 
     uint32            m_followLeader{ 0 }; // set during a tick when the bot should follow its leader now
     timer::time_point m_leaderGoneSince{}; // when the leader left the bot's zone
-    timer::time_point m_farSince{};        // when the bot fell out of reach of its leader in the same zone
+    timer::time_point m_progressAt{};      // when a bot following its leader last got anywhere (moved a little)
+    position_t        m_progressSpot{};    // where it stood then
+    timer::time_point m_lastFollowTick{};  // the last tick the follow logic ran (rests and fights pause the count)
+    timer::time_point m_nextCatchUp{};     // the next time it may look for a catch-up point
 
     bool  m_tpForParty{ false }; // the weapon skill mode the gambits run with
     uint8 m_lastLevel{ 0 };      // to rebuild spells and weapon skills when the level changes (level sync)

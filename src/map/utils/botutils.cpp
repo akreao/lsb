@@ -1102,6 +1102,13 @@ auto SpawnBot(CZone* PZone, const BotSpec& spec) -> CCharEntity*
         charutils::EquipItem(PRaw, slotId, equipSlot, LOC_INVENTORY);
     }
 
+    // No main weapon (a monk's fists, or a bot made without one): the unarmed pseudo-weapon a loaded character gets,
+    // or its first auto-attack builds no swing and reads past the end of the round.
+    if (PRaw->m_Weapons[SLOT_MAIN] == nullptr)
+    {
+        charutils::CheckUnarmedWeapon(PRaw);
+    }
+
     std::memcpy(&PRaw->mainlook, &PRaw->look, sizeof(PRaw->look));
 
     charutils::CalculateStats(PRaw);
@@ -1577,6 +1584,87 @@ auto ScatterPoint(CZone* PZone) -> Maybe<position_t>
     }
 
     return std::nullopt;
+}
+
+auto CatchUpPoint(CZone* PZone, const CCharEntity* PLeader, const bool hiddenOnly) -> Maybe<position_t>
+{
+    if (PZone == nullptr || PZone->navMesh() == nullptr || PLeader == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    constexpr float MinRange   = 15.0f;
+    constexpr float MaxRange   = 70.0f;
+    constexpr float DrawRange  = 50.0f; // a player's client draws other players this close (zone_entities despawn range)
+    constexpr float EyeHeight  = 2.0f;  // FFXI y grows downward
+    constexpr float LedgeRise  = 1.0f;
+    constexpr int   Candidates = 24;
+
+    const auto players = RealPlayers(PZone);
+    const auto seenBy  = [&](const position_t& point)
+    {
+        return std::ranges::any_of(players, [&](const CCharEntity* PChar)
+                                   {
+                                       if (::distance(PChar->loc.p, point) >= DrawRange)
+                                       {
+                                           return false;
+                                       }
+
+                                       const auto* PXiMesh = PZone->xiMesh();
+                                       return PXiMesh == nullptr ||
+                                              !PXiMesh->rayIntersect(Vector3{ PChar->loc.p.x, PChar->loc.p.y - EyeHeight, PChar->loc.p.z },
+                                                                     Vector3{ point.x, point.y - EyeHeight, point.z });
+                                   });
+    };
+
+    // A player walks down a ledge but never up one: the walk from the point to the leader must climb nothing.
+    const auto walkable = [&](const position_t& point)
+    {
+        auto built = PZone->navMesh()->findPath(point, PLeader->loc.p, 0.5f, AvoidLinks::Yes);
+        if (!built || built->points.empty())
+        {
+            return false;
+        }
+
+        auto from = point;
+        for (const auto& step : built->points)
+        {
+            const float rise = from.y - step.position.y;
+            if (rise > LedgeRise && rise > ::distance(from, step.position, true))
+            {
+                return false;
+            }
+
+            from = step.position;
+        }
+
+        return true;
+    };
+
+    // The closest fitting candidate, for the shortest run in.
+    Maybe<position_t> best;
+    float             bestRange = MaxRange;
+    for (int attempt = 0; attempt < Candidates; ++attempt)
+    {
+        auto point = PZone->navMesh()->findRandomPosition(PLeader->loc.p, MaxRange);
+        if (!point)
+        {
+            continue;
+        }
+
+        // Judge the place the bot will stand, on the floor there.
+        StandOnGround(PZone, *point);
+        const float range = ::distance(PLeader->loc.p, *point);
+        if (range < MinRange || range > bestRange || (hiddenOnly && seenBy(*point)) || !walkable(*point))
+        {
+            continue;
+        }
+
+        best      = point;
+        bestRange = range;
+    }
+
+    return best;
 }
 
 void OnLogout(CCharEntity* PBot)

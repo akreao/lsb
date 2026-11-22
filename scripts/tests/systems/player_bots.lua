@@ -53,6 +53,8 @@ describe('Player bots', function()
         noHuntZones = xi.settings.map.PLAYER_BOTS_NO_HUNT_ZONES
         xi.settings.map.PLAYER_BOTS_NO_HUNT_ZONES = {}
         xi.test.world:setSetting('map.PLAYER_BOTS_HUNTERS_YIELD', false)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_DISTANCE', 100)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_STUCK', 10)
         player = xi.test.world:spawnPlayer({ zone = zoneId })
         player.packets:clear()
     end)
@@ -747,6 +749,7 @@ describe('Player bots', function()
 
     it('runs to a far leader instead of appearing next to it', function()
         player:setLevel(10)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_DISTANCE', 0)
         local bot = inviteBot('Runbot')
         assert(bot:getPartySize() == 2, 'bot did not join')
 
@@ -810,6 +813,13 @@ describe('Player bots', function()
         assert(countIncoming(0x00D, other:getID()) > 0, 'the real player was not drawn while bots held every slot')
     end)
 
+    it('fights with its fists when it has no weapon, as a character does', function()
+        -- Without the unarmed pseudo-weapon the first auto-attack built no swing and read past the end of the round.
+        local zone = assert(player:getZone())
+        local bot = assert(zone:spawnBot({ name = 'Fistbot', job = xi.job.MNK, level = 10, x = player:getXPos() + 2, y = player:getYPos(), z = player:getZPos() }))
+        assert(bot:getWeaponSkillType(xi.slot.MAIN) == xi.skill.HAND_TO_HAND, 'a monk bot without a weapon has no fists')
+    end)
+
     it('fights back when a mob attacks it, where players can see the swings', function()
         local mob = assert(player.entities:moveTo('Fungus_Beetle'))
         mob:setLevelRange(10, 10)
@@ -839,6 +849,7 @@ describe('Player bots', function()
 
     it('runs to its leader as fast as a player runs', function()
         player:setLevel(10)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_DISTANCE', 0)
         local bot = inviteBot('Sprinter')
         assert(bot:getPartySize() == 2, 'bot did not join')
 
@@ -852,6 +863,99 @@ describe('Player bots', function()
         -- (2 a tick); the old mob rate gave about 1.2 a tick.
         local covered = before - utils.distance(bot:getPos(), player:getPos())
         assert(covered > 16, string.format('bot closed %.1f yalms in 10 ticks', covered))
+    end)
+
+    -- A bot standing at (x, z) on the floor there, invited from the /sea list as from across the zone.
+    local function inviteFromAfar(name, x, z, noWait)
+        local zone = assert(player:getZone())
+        local y = assert(zone:getFloorHeight(x, -200, z, 200), 'no floor at the spot')
+        local bot = assert(zone:spawnBot({ name = name, job = xi.job.WAR, level = 10, x = x, y = y, z = z }))
+        local packet = ffi.new('uint8_t[12]')
+        ffi.cast('uint32_t*', packet + 0x04)[0] = bit.band(bot:getID(), 0xFFFFF)
+        player.packets:send(0x06E, packet, ffi.sizeof(packet))
+        if not noWait then
+            waitForAnswer()
+            assert(bot:getPartySize() == 2, 'bot did not join')
+        end
+
+        return bot
+    end
+
+    it('turns up near a leader far across the zone, out of sight, and runs in', function()
+        player:setLevel(10)
+        local bot = inviteFromAfar('Farbot', -560, -613, true)
+
+        -- It turns up on the tick it joins and stands there for that tick.
+        local gap = utils.distance(bot:getPos(), player:getPos())
+        for _ = 1, 10 do
+            xi.test.world:skipTime(1)
+            gap = utils.distance(bot:getPos(), player:getPos())
+            if gap <= 71 then
+                break
+            end
+        end
+
+        assert(bot:getPartySize() == 2, 'bot did not join')
+
+        assert(gap >= 15 and gap <= 71, string.format('bot is %.1f yalms away, not near the leader', gap))
+        -- Out of sight: beyond the 50 yalm draw range, or behind terrain.
+        if gap < 50 then
+            assert(not player:getZone():isInSight(player:getPos(), bot:getPos()), 'bot turned up in plain sight')
+        end
+
+        for _ = 1, 40 do
+            xi.test.world:skipTime(1)
+        end
+
+        gap = utils.distance(bot:getPos(), player:getPos())
+        assert(gap < 8, string.format('bot did not run in (%.1f yalms, engaged %s, at %.1f %.1f %.1f)', gap, tostring(bot:isEngaged()), bot:getXPos(), bot:getYPos(), bot:getZPos()))
+        assert(bot:getPartySize() == 2, 'bot left the party')
+    end)
+
+    it('runs all the way when catching up is off, and stays in the party while it gets somewhere', function()
+        player:setLevel(10)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_DISTANCE', 0)
+        local bot = inviteFromAfar('Longrun', -560, -613)
+        local start = utils.distance(bot:getPos(), player:getPos())
+        assert(start > 300, string.format('test needs a bot over 300 yalms away (%.1f)', start))
+
+        -- The old rule left the party after a minute beyond 30 yalms, long before a run this long ends.
+        for _ = 1, 90 do
+            xi.test.world:skipTime(1)
+        end
+
+        local gap = utils.distance(bot:getPos(), player:getPos())
+        assert(bot:getPartySize() == 2, 'bot left the party while running to its leader')
+        assert(gap < start - 100, string.format('bot got only %.1f yalms closer', start - gap))
+    end)
+
+    it('turns up near its leader when it gets nowhere', function()
+        player:setLevel(10)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_DISTANCE', 0)
+        -- From this Ranperre's Tomb arrival point every walk to the zone's start cuts off at a ledge right under the bot.
+        local bot = inviteFromAfar('Stuckbot', -176.8, 420.6)
+        local start = utils.distance(bot:getPos(), player:getPos())
+
+        for _ = 1, 20 do
+            xi.test.world:skipTime(1)
+        end
+
+        local gap = utils.distance(bot:getPos(), player:getPos())
+        assert(gap < 71 and gap < start - 30, string.format('bot stayed %.1f yalms away (from %.1f)', gap, start))
+        assert(bot:getPartySize() == 2, 'bot left the party')
+    end)
+
+    it('leaves the party when it gets nowhere and catching up is off', function()
+        player:setLevel(10)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_DISTANCE', 0)
+        xi.test.world:setSetting('map.PLAYER_BOTS_CATCH_UP_STUCK', 0)
+        local bot = inviteFromAfar('Givesup', -176.8, 420.6)
+
+        for _ = 1, 70 do
+            xi.test.world:skipTime(1)
+        end
+
+        assert(bot:getPartySize() ~= 2, 'stuck bot stayed in the party')
     end)
 
     it('wanders off on its own instead of hanging around a player', function()
@@ -1003,7 +1107,8 @@ describe('Player bots', function()
                 end
             end
 
-            if sent then
+            -- A bot that wandered out of draw range gets a despawn 0x00D, which carries no height.
+            if sent and utils.distance(bot:getPos(), player:getPos()) < 45 then
                 checked = checked + 1
                 worst   = math.max(worst, math.abs(sent - bot:getYPos()))
             end
