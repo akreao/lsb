@@ -38,7 +38,7 @@ class CGambitsContainer;
 
 }
 
-// Drives a player bot: a solo hunter (roam, hunt, fight, rest, flee) whose fighting uses trust gambits.
+// Drives a player bot: a solo hunter (roam, hunt, fight to the end, rest) whose fighting uses trust gambits.
 // In a party it acts like a trust with the party leader as its master: follow, assist, rest, heal.
 // Bots are memory only and custom (not retail); see botutils.
 class CBotController : public CPlayerController, public gambits::IGambitsHost
@@ -103,7 +103,6 @@ private:
     auto IsResting() const -> bool;
     void StartResting();
     void StopResting();
-    auto ShouldFlee(const CBattleEntity* PTarget) const -> bool;
     auto IsCaster() const -> bool;
 
     CCharEntity* PBot;
@@ -114,7 +113,6 @@ private:
     position_t        m_home{};
     EntityId          m_prey{};
     bool              m_hunting{ false };
-    bool              m_fleeing{ false };
     timer::time_point m_nextHuntCheck{};
     timer::time_point m_nextRoam{};
     timer::time_point m_nextRehome{};

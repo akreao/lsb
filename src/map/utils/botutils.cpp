@@ -32,7 +32,9 @@
 #include "ai/ai_container.h"
 #include "ai/controllers/bot_controller.h"
 #include "ai/helpers/pathfind.h"
+#include "enmity_container.h"
 #include "entities/char_entity.h"
+#include "entities/mob_entity.h"
 #include "enums/chat_message_type.h"
 #include "enums/msg_std.h"
 #include "enums/party_kind.h"
@@ -56,6 +58,8 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <fstream>
+#include <iterator>
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
@@ -83,6 +87,82 @@ std::unordered_map<uint16, std::vector<position_t>> zoneEntrances;
 
 // When each zone may next hear an idle line from a bot.
 std::unordered_map<uint16, timer::time_point> nextIdleChat;
+
+// Where real players fight, per zone and character, and until when it counts as their camp.
+struct Camp
+{
+    position_t        pos{};
+    timer::time_point until{};
+};
+
+std::unordered_map<uint16, std::unordered_map<uint32, Camp>> playerCamps;
+
+// Each zone's mob level band (the middle half of its normal mobs' levels), worked out now and then.
+struct LevelBand
+{
+    uint8             low{ 0 };
+    uint8             high{ 0 };
+    timer::time_point until{};
+};
+
+std::unordered_map<uint16, LevelBand> levelBands;
+
+// Mob scripts (zone/name) that call xi.mob.phOnDespawn, so the mob is an NM's placeholder.
+std::unordered_map<std::string, bool> placeholderScripts;
+
+auto levelBand(CZone* PZone) -> const LevelBand&
+{
+    auto& band = levelBands[static_cast<uint16>(PZone->GetID())];
+    if (timer::now() < band.until)
+    {
+        return band;
+    }
+
+    std::vector<uint8> levels;
+    PZone->ForEachMob(
+        [&](CMobEntity* PMob)
+        {
+            if (PMob->isAlive() && PMob->PAI->IsSpawned() && (PMob->m_Type & xi::MobType::Notorious) == xi::MobType::Normal && PMob->GetMLevel() > 0)
+            {
+                levels.push_back(PMob->GetMLevel());
+            }
+        });
+
+    band = LevelBand{ .until = timer::now() + 5min };
+    if (!levels.empty())
+    {
+        std::ranges::sort(levels);
+        band.low  = levels[(levels.size() - 1) / 4];
+        band.high = levels[(levels.size() - 1) * 3 / 4];
+    }
+
+    return band;
+}
+
+// A real player whose level fits the zone's mobs: the kind of player a hunting bot would crowd.
+auto fitsZone(CZone* PZone, const CCharEntity* PChar) -> bool
+{
+    const auto& band = levelBand(PZone);
+    return band.high != 0 && PChar->GetMLevel() + 2 >= band.low && PChar->GetMLevel() <= band.high + 8;
+}
+
+auto isPlaceholder(const CMobEntity* PMob) -> bool
+{
+    if (PMob->loc.zone == nullptr)
+    {
+        return false;
+    }
+
+    const auto key = fmt::format("{}/{}", PMob->loc.zone->getName(), PMob->getName());
+    if (const auto it = placeholderScripts.find(key); it != placeholderScripts.end())
+    {
+        return it->second;
+    }
+
+    const bool placeholder  = IsPlaceholderScript(PMob->loc.zone->getName(), PMob->getName());
+    placeholderScripts[key] = placeholder;
+    return placeholder;
+}
 
 auto controllerOf(CCharEntity* PBot) -> CBotController*
 {
@@ -355,6 +435,9 @@ void ResetForTests()
     liveBotSpecs.clear();
     zoneEntrances.clear();
     nextIdleChat.clear();
+    playerCamps.clear();
+    levelBands.clear();
+    placeholderScripts.clear();
     nextBotId = BotIdFirst;
 
     if (const auto reset = lua["xi"]["bots"]["reset"]; reset.valid())
@@ -442,6 +525,122 @@ void SnapToGround(CZone* PZone, position_t& pos)
     }
 }
 
+auto IsPlaceholderScript(const std::string& zoneName, const std::string& mobName) -> bool
+{
+    std::ifstream file(fmt::format("./scripts/zones/{}/mobs/{}.lua", zoneName, mobName));
+    if (!file)
+    {
+        return false;
+    }
+
+    const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    return text.find("phOnDespawn") != std::string::npos;
+}
+
+auto RealPlayers(CZone* PZone) -> std::vector<CCharEntity*>
+{
+    std::vector<CCharEntity*> players;
+    if (PZone == nullptr)
+    {
+        return players;
+    }
+
+    PZone->ForEachChar(
+        [&](CCharEntity* PChar)
+        {
+            if (!PChar->m_isGMHidden && PChar->status != xi::Status::Disappear)
+            {
+                players.push_back(PChar);
+            }
+        });
+
+    return players;
+}
+
+void TrackCamps(CZone* PZone)
+{
+    auto&      camps = playerCamps[static_cast<uint16>(PZone->GetID())];
+    const auto now   = timer::now();
+    const auto keep  = std::chrono::minutes(settings::get<uint8>("map.PLAYER_BOTS_CAMP_MINUTES"));
+
+    for (auto* PChar : RealPlayers(PZone))
+    {
+        if (PChar->PAI->IsEngaged())
+        {
+            camps[PChar->id] = Camp{ .pos = PChar->loc.p, .until = now + keep };
+        }
+    }
+
+    std::erase_if(camps, [now](const auto& entry)
+                  {
+                      return entry.second.until < now;
+                  });
+}
+
+auto InPlayerCamp(CZone* PZone, const position_t& pos) -> bool
+{
+    const auto it = playerCamps.find(static_cast<uint16>(PZone->GetID()));
+    if (it == playerCamps.end())
+    {
+        return false;
+    }
+
+    const auto  now   = timer::now();
+    const float range = settings::get<float>("map.PLAYER_BOTS_CAMP_RANGE");
+    return std::ranges::any_of(it->second, [&](const auto& entry)
+                               {
+                                   return entry.second.until >= now && ::distance(entry.second.pos, pos) < range;
+                               });
+}
+
+auto IsFairPrey(CCharEntity* PBot, CMobEntity* PMob) -> bool
+{
+    if (PMob == nullptr || !PMob->isAlive() || !PMob->PAI->IsSpawned() || PMob->PAI->IsEngaged() || PMob->m_OwnerID.isSet() ||
+        PMob->PMaster != nullptr || PMob->allegiance != xi::Allegiance::Mob || (PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal ||
+        PMob->m_SpawnType == xi::SpawnType::Scripted || PMob->m_SpawnType == xi::SpawnType::Lottery || !PMob->m_AllowRespawn ||
+        PMob->m_RespawnTime <= 0s)
+    {
+        return false;
+    }
+
+    auto* PZone = PMob->loc.zone;
+    if (PZone == nullptr || InPlayerCamp(PZone, PMob->loc.p) || isPlaceholder(PMob))
+    {
+        return false;
+    }
+
+    // Leave it to any real player close to it, or who has it targeted.
+    constexpr float PlayerClearRange = 25.0f;
+    for (const auto* PChar : RealPlayers(PZone))
+    {
+        if (::distance(PChar->loc.p, PMob->loc.p) < PlayerClearRange || PChar->m_TargID == PMob->targid || PChar->GetBattleTarget() == PMob)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void DropClaims(CCharEntity* PBot)
+{
+    if (PBot->loc.zone == nullptr)
+    {
+        return;
+    }
+
+    PBot->loc.zone->ForEachMob(
+        [PBot](CMobEntity* PMob)
+        {
+            PMob->PEnmityContainer->Clear(PBot->id);
+            if (PMob->m_OwnerID.UniqueNo == PBot->id)
+            {
+                PMob->m_OwnerID.clean();
+                PMob->updatemask |= UPDATE_STATUS;
+            }
+        });
+}
+
 auto MayHunt(CCharEntity* PBot) -> bool
 {
     auto* PZone = PBot->loc.zone;
@@ -450,17 +649,30 @@ auto MayHunt(CCharEntity* PBot) -> bool
         return false;
     }
 
+    // Starting zones belong to new players: bots there roam and chat but never hunt.
+    const auto zoneId = static_cast<uint16>(PZone->GetID());
+    if (const sol::object noHunt = lua["xi"]["settings"]["map"]["PLAYER_BOTS_NO_HUNT_ZONES"]; noHunt.is<sol::table>())
+    {
+        for (const auto& [_, entry] : noHunt.as<sol::table>())
+        {
+            if (entry.is<uint16>() && entry.as<uint16>() == zoneId)
+            {
+                return false;
+            }
+        }
+    }
+
     int32 cap = settings::get<uint8>("map.PLAYER_BOTS_MAX_HUNTERS");
     if (settings::get<bool>("map.PLAYER_BOTS_HUNTERS_YIELD"))
     {
-        PZone->ForEachChar(
-            [&](CCharEntity* PChar)
-            {
-                if (PChar->PAI->IsEngaged())
-                {
-                    --cap;
-                }
-            });
+        // One hunter fewer for each real player of the zone's level, fighting or not; none with three or more.
+        int32 fitting = 0;
+        for (const auto* PChar : RealPlayers(PZone))
+        {
+            fitting += fitsZone(PZone, PChar) ? 1 : 0;
+        }
+
+        cap = fitting >= 3 ? 0 : cap - fitting;
     }
 
     int32 hunting = 0;

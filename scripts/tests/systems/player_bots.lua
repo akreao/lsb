@@ -6,6 +6,7 @@ describe('Player bots', function()
     local player
 
     local zoneId = xi.zone.WEST_RONFAURE
+    local noHuntZones
 
     local function spawnBot(name)
         local zone = assert(player:getZone())
@@ -47,6 +48,11 @@ describe('Player bots', function()
         xi.test.world:setSetting('map.PLAYER_BOTS_ENABLED', true)
         -- No automatic arrivals unless a test asks for them.
         xi.test.world:setSetting('map.PLAYER_BOTS_MAX_PER_ZONE', 0)
+        -- West Ronfaure is a starting zone and the test player fits its level; let bots hunt unless a test says not.
+        -- Table settings live only in Lua (setSetting takes plain values).
+        noHuntZones = xi.settings.map.PLAYER_BOTS_NO_HUNT_ZONES
+        xi.settings.map.PLAYER_BOTS_NO_HUNT_ZONES = {}
+        xi.test.world:setSetting('map.PLAYER_BOTS_HUNTERS_YIELD', false)
         player = xi.test.world:spawnPlayer({ zone = zoneId })
         player.packets:clear()
     end)
@@ -54,6 +60,7 @@ describe('Player bots', function()
     -- Bots outlive a test's player by the leave delay; start each test with none and no leftover bot state.
     after_each(function()
         ResetBots()
+        xi.settings.map.PLAYER_BOTS_NO_HUNT_ZONES = noHuntZones
     end)
 
     it('does nothing while the setting is off', function()
@@ -707,6 +714,86 @@ describe('Player bots', function()
         assert(other:getPartySize() == 3, string.format('new leader has %d members, wanted 3', other:getPartySize()))
         for _, bot in ipairs(bots) do
             assert(bot:getPartySize() == 3, bot:getName() .. ' left the party with the old leader')
+        end
+    end)
+
+    it('never hunts in a starting zone', function()
+        xi.settings.map.PLAYER_BOTS_NO_HUNT_ZONES = { zoneId }
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        local bot = spawnHunter('Newbiebot', mob)
+
+        for _ = 1, 20 do
+            xi.test.world:skipTime(1)
+            assert(not bot:isEngaged(), 'bot hunted in a starting zone')
+        end
+    end)
+
+    it('stays out of a real player\'s camp', function()
+        -- The player fights a beetle, then walks off: the camp outlasts the fight.
+        local target = assert(player.entities:moveTo('Fungus_Beetle'))
+        target:respawn()
+        player.actions:engage(target)
+        xi.test.world:skipTime(1)
+        assert(player:isEngaged(), 'player did not engage')
+
+        local camp = { x = player:getXPos(), y = player:getYPos(), z = player:getZPos() }
+        player:disengage()
+
+        -- Another mob inside the camp, 25 to 50 yalms from where the player fought.
+        local mob
+        for _, other in ipairs(assert(player:getZone()):getMobs()) do
+            local range = utils.distance(camp, { x = other:getXPos(), y = other:getYPos(), z = other:getZPos() })
+            if
+                not mob and
+                other:isSpawned() and
+                other:isAlive() and
+                not other:isNM() and
+                not other:isEngaged() and
+                range > 25 and
+                range < 50
+            then
+                mob = other
+            end
+        end
+
+        assert(mob, 'no mob inside the camp')
+        player:setPos(camp.x + 70, camp.y, camp.z)
+
+        local bot = spawnHunter('Campbot', mob)
+        for _ = 1, 20 do
+            xi.test.world:skipTime(1)
+            assert(not bot:isEngaged() or bot:getTarget():getID() ~= mob:getID(), 'bot hunted inside a player camp')
+        end
+    end)
+
+    it('knows an NM placeholder from its script', function()
+        assert(IsBotPlaceholderScript('Konschtat_Highlands', 'Tremor_Ram'), 'Tremor Ram is a placeholder')
+        assert(not IsBotPlaceholderScript('West_Ronfaure', 'Fungus_Beetle'), 'Fungus Beetle is no placeholder')
+    end)
+
+    it('gives up its claim when it dies', function()
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        local bot = spawnHunter('Claimbot', mob)
+        mob:updateClaim(bot)
+        assert(bot:hasClaim(mob), 'bot did not claim the mob')
+
+        bot:setHP(0)
+        xi.test.world:skipTime(1)
+
+        assert(not bot:hasClaim(mob), 'dead bot kept its claim')
+    end)
+
+    it('stops hunting when three players of the zone level are there', function()
+        xi.test.world:setSetting('map.PLAYER_BOTS_HUNTERS_YIELD', true)
+        for _ = 1, 2 do
+            xi.test.world:spawnPlayer({ zone = zoneId, level = player:getMainLvl() })
+        end
+
+        local mob = assert(findPrey(), 'no mob far enough from the player')
+        local bot = spawnHunter('Yieldbot', mob)
+        for _ = 1, 20 do
+            xi.test.world:skipTime(1)
+            assert(not bot:isEngaged(), 'bot hunted with three fitting players in the zone')
         end
     end)
 end)

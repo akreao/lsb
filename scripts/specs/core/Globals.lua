@@ -43,6 +43,18 @@ end
 function ResetBots()
 end
 
+---Counts rows with a player bot id in the char tables (bots must never be saved, so 0).
+---@return integer
+function CheckDatabaseForBots()
+end
+
+---True when the mob script for the zone and mob name calls xi.mob.phOnDespawn (an NM placeholder).
+---@param zoneName string
+---@param mobName string
+---@return boolean
+function IsBotPlaceholderScript(zoneName, mobName)
+end
+
 -- True when a player bot of this job and level can wear the item in that equip slot.
 ---@nodiscard
 ---@param itemId xi.item

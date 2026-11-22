@@ -2324,8 +2324,11 @@ auto CZoneEntities::ZoneServer(timer::time_point tick) -> Task<void>
     {
         botutils::DailyDatabaseCheck(tick);
 
-        if (!m_charList.empty())
+        // GM-hidden players do not bring bots. Camps are noted even before any bot arrives.
+        if (!botutils::RealPlayers(m_zone).empty())
         {
+            botutils::TrackCamps(m_zone);
+
             m_botsAloneSince = {};
             if (tick >= m_nextBotPopulate)
             {

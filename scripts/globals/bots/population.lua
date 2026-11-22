@@ -65,8 +65,20 @@ end
 
 -- The arrival point closest to a real player, as if the bot had just zoned in there. It may be in sight (players
 -- zone in at the same spots); it is never closer than arrivalClearRange, so a bot does not appear on top of someone.
+-- Real players a zone counts for bots: GM-hidden ones do not.
+xi.bots.realPlayers = function(zone)
+    local players = {}
+    for _, player in ipairs(zone:getPlayers()) do
+        if not player:getGMHidden() then
+            table.insert(players, player)
+        end
+    end
+
+    return players
+end
+
 local function pickArrival(zone)
-    local players = zone:getPlayers()
+    local players = xi.bots.realPlayers(zone)
     local best, bestRange
 
     for _, pos in ipairs(zone:getBotEntrances()) do

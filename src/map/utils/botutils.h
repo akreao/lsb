@@ -32,6 +32,7 @@
 
 class CBaseEntity;
 class CCharEntity;
+class CMobEntity;
 class CZone;
 
 // Player bots: server-made player shells that live only in memory, never in the database.
@@ -103,9 +104,31 @@ auto GetEntrances(CZone* PZone) -> const std::vector<position_t>&;
 // which paths follow, can sit a little above or below the floor; other clients draw a PC at the y it is given.
 void SnapToGround(CZone* PZone, position_t& pos);
 
-// True when the bot may pick a fight: the zone has fewer hunting bots than its cap
-// (map.PLAYER_BOTS_MAX_HUNTERS, one less for each real player fighting there).
+// True when the bot may pick a fight: hunting is allowed in the zone (not a starting zone on
+// map.PLAYER_BOTS_NO_HUNT_ZONES, fewer than 3 real players of the zone's level there), and the zone has fewer
+// hunting bots than its cap (map.PLAYER_BOTS_MAX_HUNTERS, one less per real player of the zone's level).
 auto MayHunt(CCharEntity* PBot) -> bool;
+
+// True when the mob script for this zone and mob name makes the mob an NM's placeholder (it calls
+// xi.mob.phOnDespawn). Bots never hunt placeholders.
+auto IsPlaceholderScript(const std::string& zoneName, const std::string& mobName) -> bool;
+
+// The real players a zone counts: not GM-hidden, not leaving.
+auto RealPlayers(CZone* PZone) -> std::vector<CCharEntity*>;
+
+// Notes where real players are fighting; a camp stays for map.PLAYER_BOTS_CAMP_MINUTES after their last fight.
+// Called every zone tick while the zone has real players.
+void TrackCamps(CZone* PZone);
+
+// True inside a real player's camp (map.PLAYER_BOTS_CAMP_RANGE yalms): bots never hunt there.
+auto InPlayerCamp(CZone* PZone, const position_t& pos) -> bool;
+
+// True when a bot may go after this mob: a normal, respawning mob that is no NM's placeholder, has no claim or
+// fight, and no real player is near it or has it targeted.
+auto IsFairPrey(CCharEntity* PBot, CMobEntity* PMob) -> bool;
+
+// Lets go of every claim and hate the bot holds (when it dies), so the mob is free for anyone.
+void DropClaims(CCharEntity* PBot);
 
 // Asks the Lua bot manager (xi.bots.populate) whether this zone should gain a bot now.
 void Populate(CZone* PZone);

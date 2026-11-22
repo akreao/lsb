@@ -315,7 +315,7 @@ xi.settings.map =
     -- At most this many bots hunt at once in a zone; the rest roam.
     PLAYER_BOTS_MAX_HUNTERS = 4,
 
-    -- Each real player fighting in a zone lowers that zone's hunter cap by one.
+    -- Each real player whose level fits a zone lowers its hunter cap by one; three or more stop bot hunting there.
     PLAYER_BOTS_HUNTERS_YIELD = true,
 
     -- Seconds a dead bot stays down (so it can be raised) before it comes back at a zone entrance.
@@ -332,6 +332,13 @@ xi.settings.map =
 
     -- Zone ids bots never enter, on top of instances and Dynamis (Chocobo Circuit, Mog Garden, Feretory).
     PLAYER_BOTS_EXCLUDED_ZONES = { 70, 280, 285 },
+
+    -- Bots never hunt within this many yalms of where a real player fought in the last PLAYER_BOTS_CAMP_MINUTES.
+    PLAYER_BOTS_CAMP_RANGE   = 50,
+    PLAYER_BOTS_CAMP_MINUTES = 5,
+
+    -- Starting zones, where bots roam and chat but never hunt (the Ronfaures, Gustabergs and Sarutabarutas).
+    PLAYER_BOTS_NO_HUNT_ZONES = { 100, 101, 106, 107, 115, 116 },
 
     -- A bot turns down a party invite from a player more than this many levels above it, or below it.
     PLAYER_BOTS_PARTY_LEVEL_ABOVE = 10,

@@ -50,11 +50,10 @@ namespace
 {
 
 // How far a solo bot looks for a mob, and how close a real player may be before it leaves that mob alone.
-constexpr float PreySearchRange  = 40.0f;
-constexpr float PlayerClearRange = 15.0f;
-constexpr float EngageRange      = 20.0f;
-constexpr float CasterRange      = 10.0f;
-constexpr float RoamRadius       = 20.0f;
+constexpr float PreySearchRange = 40.0f;
+constexpr float EngageRange     = 20.0f;
+constexpr float CasterRange     = 10.0f;
+constexpr float RoamRadius      = 20.0f;
 
 // A bot no real player can see (the client draws other characters within 45 yalms) heads toward one now and then,
 // ending up this far from them: close enough to be seen, not on top of them.
@@ -335,7 +334,6 @@ void CBotController::DecideInvite()
     m_inParty       = true;
     m_partyLeaderId = PInviter->id;
     m_hunting       = false;
-    m_fleeing       = false;
     m_prey          = {};
 
     if (IsResting())
@@ -472,12 +470,14 @@ auto CBotController::PartyTick(const timer::time_point tick) -> Task<void>
 void CBotController::DeadTick(const timer::time_point tick)
 {
     m_hunting = false;
-    m_fleeing = false;
     m_prey    = {};
 
     if (m_deathTime == timer::time_point{})
     {
         m_deathTime = tick;
+
+        // A dead bot holds nothing: the mob is free for anyone at once.
+        botutils::DropClaims(PBot);
 
         if (PBot->PParty != nullptr)
         {
@@ -503,17 +503,6 @@ auto CBotController::CombatTick(const timer::time_point tick) -> Task<void>
         Disengage();
         m_hunting = false;
         m_prey    = {};
-        co_return;
-    }
-
-    // A bot in a party stands with it, as a player would.
-    if (PBot->PParty == nullptr && ShouldFlee(PTarget))
-    {
-        Disengage();
-        m_hunting = false;
-        m_prey    = {};
-        m_fleeing = true;
-        PBot->PAI->PathFind->PathTo(m_home, PATHFLAG_RUN);
         co_return;
     }
 
@@ -544,17 +533,6 @@ auto CBotController::CombatTick(const timer::time_point tick) -> Task<void>
 
 auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
 {
-    if (m_fleeing)
-    {
-        if (PBot->PAI->PathFind->IsFollowingPath())
-        {
-            PBot->PAI->PathFind->FollowPath(tick);
-            co_return;
-        }
-
-        m_fleeing = false;
-    }
-
     if (IsResting())
     {
         if (PBot->GetHPP() >= 100 && (PBot->GetMaxMP() == 0 || PBot->GetMPP() >= 100))
@@ -588,6 +566,15 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
         else if (::distance(PBot->loc.p, PMob->loc.p) <= EngageRange)
         {
             PBot->PAI->PathFind->Clear();
+
+            // Look again just before the pull: a player may have come for it on the way.
+            if (!botutils::IsFairPrey(PBot, PMob))
+            {
+                m_prey    = {};
+                m_hunting = false;
+                co_return;
+            }
+
             Engage(m_prey);
             co_return;
         }
@@ -696,28 +683,13 @@ auto CBotController::FindPrey() -> CMobEntity*
         [&](CMobEntity* PMob)
         {
             const float range = ::distance(PBot->loc.p, PMob->loc.p);
-            if (range >= bestRange || !PMob->isAlive() || !PMob->PAI->IsSpawned() || PMob->PAI->IsEngaged() ||
-                PMob->m_OwnerID.isSet() || PMob->PMaster != nullptr || PMob->allegiance != xi::Allegiance::Mob ||
-                (PMob->m_Type & xi::MobType::Notorious) != xi::MobType::Normal)
+            if (range >= bestRange)
             {
                 return;
             }
 
             const auto check = charutils::CheckMob(PBot->GetMLevel(), PMob);
-            if (check < EMobDifficulty::EasyPrey || check > EMobDifficulty::EvenMatch)
-            {
-                return;
-            }
-
-            // Leave mobs near real players alone: they may want them.
-            bool playerNear = false;
-            PBot->loc.zone->ForEachChar(
-                [&](CCharEntity* PChar)
-                {
-                    playerNear = playerNear || ::distance(PChar->loc.p, PMob->loc.p) < PlayerClearRange;
-                });
-
-            if (playerNear)
+            if (check < EMobDifficulty::EasyPrey || check > EMobDifficulty::EvenMatch || !botutils::IsFairPrey(PBot, PMob))
             {
                 return;
             }
@@ -750,17 +722,6 @@ void CBotController::StartResting()
 void CBotController::StopResting()
 {
     PBot->StatusEffectContainer->DelStatusEffectSilent(xi::StatusEffect::Healing);
-}
-
-auto CBotController::ShouldFlee(const CBattleEntity* PTarget) const -> bool
-{
-    if (PBot->GetHPP() >= 25)
-    {
-        return false;
-    }
-
-    // Low HP against something its own level or above: run, as a player would.
-    return charutils::CheckMob(PBot->GetMLevel(), const_cast<CBattleEntity*>(PTarget)) >= EMobDifficulty::EvenMatch;
 }
 
 auto CBotController::IsCaster() const -> bool
