@@ -636,7 +636,7 @@ auto CBotController::SoloTick(const timer::time_point tick) -> Task<void>
 
 void CBotController::Rehome(const timer::time_point tick)
 {
-    m_nextRehome = tick + std::chrono::seconds(xirand::GetRandomNumber(120, 300));
+    m_nextRehome = tick + std::chrono::seconds(xirand::GetRandomNumber(30, 90));
 
     if (PBot->loc.zone == nullptr)
     {
@@ -662,10 +662,10 @@ void CBotController::Rehome(const timer::time_point tick)
         return;
     }
 
-    // Already where people can see it: now and then stroll somewhere else nearby, so it never stands at one spot.
+    // Already where people can see it: stroll somewhere else nearby, so the area looks busy and it never stands still long.
     if (seen)
     {
-        if (xirand::GetRandomNumber(3) == 0 && PBot->PAI->PathFind->RoamAround(PBot->loc.p, RoamRadius * 3, 1, 3))
+        if (PBot->PAI->PathFind->RoamAround(PBot->loc.p, RoamRadius * 4, 1, 3))
         {
             m_home = PBot->PAI->PathFind->GetDestination();
         }

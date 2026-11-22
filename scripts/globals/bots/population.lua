@@ -19,8 +19,8 @@ local targetRanges =
 
 local zoneTargets = {}
 
--- Bots never walk into an arrival point while a player is closer than this.
-local arrivalClearRange = 20
+-- Bots never arrive at a point a player is closer to than this.
+local arrivalClearRange = 5
 
 local function hasFlag(mask, flag)
     return bit.band(mask, flag) ~= 0
@@ -63,15 +63,11 @@ xi.bots.targetCount = function(zone)
     return math.min(zoneTargets[zoneId], xi.settings.map.PLAYER_BOTS_MAX_PER_ZONE or 12)
 end
 
--- The arrival point closest to a real player that is still out of their sight (the client draws other characters
--- within 45 yalms), so a bot walks in where people are instead of popping up next to them. In a zone too small for
--- that, any point at least arrivalClearRange from every player.
-local outOfSightRange = 50
-
+-- The arrival point closest to a real player, as if the bot had just zoned in there. It may be in sight (players
+-- zone in at the same spots); it is never closer than arrivalClearRange, so a bot does not appear on top of someone.
 local function pickArrival(zone)
     local players = zone:getPlayers()
     local best, bestRange
-    local fallback = {}
 
     for _, pos in ipairs(zone:getBotEntrances()) do
         local nearest = math.huge
@@ -80,24 +76,12 @@ local function pickArrival(zone)
             nearest = math.min(nearest, utils.distance(pos, there))
         end
 
-        if nearest >= outOfSightRange and (not bestRange or nearest < bestRange) then
+        if nearest >= arrivalClearRange and (not bestRange or nearest < bestRange) then
             best, bestRange = pos, nearest
         end
-
-        if nearest >= arrivalClearRange then
-            table.insert(fallback, pos)
-        end
     end
 
-    if best then
-        return best
-    end
-
-    if #fallback == 0 then
-        return nil
-    end
-
-    return fallback[math.random(1, #fallback)]
+    return best
 end
 
 xi.bots.populate = function(zone)

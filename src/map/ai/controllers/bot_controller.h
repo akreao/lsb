@@ -97,7 +97,7 @@ private:
 
     auto FindPrey() -> CMobEntity*;
 
-    // Moves the bot's home near a real player in its zone, so bots are seen where people are.
+    // Moves the bot's home: near a real player when nobody can see it, otherwise somewhere nearby (custom).
     void Rehome(timer::time_point tick);
     auto ShouldRest() const -> bool;
     auto IsResting() const -> bool;
