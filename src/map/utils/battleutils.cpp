@@ -229,8 +229,8 @@ void LoadMobSkillsList()
         PMobSkill->setDistance(rset->get<float>("mob_skill_distance"));
         PMobSkill->setAnimationTime(std::chrono::milliseconds(rset->get<uint32>("mob_anim_time")));
         PMobSkill->setActivationTime(std::chrono::milliseconds(rset->get<uint32>("mob_prepare_time")));
-        auto validTargets = rset->get<uint16>("mob_valid_targets");
-        if ((validTargets & TARGET_SELF) && (validTargets & TARGET_ENEMY))
+        auto validTargets = rset->get<xi::TargetType>("mob_valid_targets");
+        if ((validTargets & xi::TargetType::Self) != xi::TargetType::None && (validTargets & xi::TargetType::Enemy) != xi::TargetType::None)
         {
             ShowWarningFmt("Mob skill {} ({}) has both TARGET_SELF and TARGET_ENEMY set", PMobSkill->getName(), PMobSkill->getID());
         }
@@ -276,7 +276,7 @@ void LoadPetSkillsList()
         PPetSkill->setDistance(rset->get<float>("pet_skill_distance"));
         PPetSkill->setAnimationTime(std::chrono::milliseconds(rset->get<uint32>("pet_anim_time")));
         PPetSkill->setActivationTime(std::chrono::milliseconds(rset->get<uint32>("pet_prepare_time")));
-        PPetSkill->setValidTargets(rset->get<uint16>("pet_valid_targets"));
+        PPetSkill->setValidTargets(rset->get<xi::TargetType>("pet_valid_targets"));
         PPetSkill->setMsg(rset->get<MsgBasic>("pet_message"));
         PPetSkill->setFlag(rset->get<uint8>("pet_skill_flag"));
         PPetSkill->setParam(rset->get<int16>("pet_skill_param"));
@@ -3635,7 +3635,7 @@ auto HasNinjaTool(CBattleEntity* PEntity, CSpell* PSpell, bool ConsumeTool) -> b
         uint8  SlotID = 0;
         uint16 toolID = PSpell->getMPCost();
 
-        auto*      PInventory       = PChar->getStorage(LOC_INVENTORY);
+        auto*      PInventory       = PChar->getStorage(xi::Container::Inventory);
         const auto findUnlockedTool = [PInventory](const uint16 itemId) -> uint8
         {
             for (const uint8 slot : PInventory->SearchItems(itemId))
@@ -3713,7 +3713,7 @@ auto HasNinjaTool(CBattleEntity* PEntity, CSpell* PSpell, bool ConsumeTool) -> b
         if (ConsumeTool && hasFutae && useFutae)
         {
             // Futae Takes 2 of Your Tools
-            if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(LOC_INVENTORY, SlotID, 2) || !transaction->commit())
+            if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(xi::Container::Inventory, SlotID, 2) || !transaction->commit())
             {
                 ShowErrorFmt("battleutils: {} could not spend the tools in slot {}", PChar->getName(), SlotID);
                 return false;
@@ -3740,7 +3740,7 @@ auto HasNinjaTool(CBattleEntity* PEntity, CSpell* PSpell, bool ConsumeTool) -> b
 
                 if (!expertiseProc)
                 {
-                    if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(LOC_INVENTORY, SlotID, 1) || !transaction->commit())
+                    if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(xi::Container::Inventory, SlotID, 1) || !transaction->commit())
                     {
                         ShowErrorFmt("battleutils: {} could not spend the tool in slot {}", PChar->getName(), SlotID);
                         return false;
@@ -6021,7 +6021,7 @@ auto RemoveAmmo(CCharEntity* PChar, int quantity) -> bool
         {
             auto  eloc = PChar->equipLocation(SLOT_AMMO);
             uint8 slot = eloc ? eloc->Slot : 0;
-            uint8 loc  = eloc ? static_cast<uint8>(eloc->Container) : 0;
+            auto  loc  = eloc ? eloc->Container : xi::Container::Inventory;
             charutils::UnequipItem(PChar, SLOT_AMMO);
             if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(loc, slot, quantity) || !transaction->commit())
             {
@@ -6043,7 +6043,7 @@ auto RemoveAmmo(CCharEntity* PChar, int quantity) -> bool
                 return false;
             }
 
-            if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(static_cast<uint8>(ammoLoc->Container), ammoLoc->Slot, quantity) || !transaction->commit())
+            if (auto transaction = ItemClaimTransaction::start(PChar); !transaction || !transaction->take(ammoLoc->Container, ammoLoc->Slot, quantity) || !transaction->commit())
             {
                 ShowErrorFmt("battleutils: {} did not spend {} ammo in slot {}", PChar->getName(), quantity, ammoLoc->Slot);
             }

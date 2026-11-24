@@ -4514,12 +4514,12 @@ auto CLuaBaseEntity::hasItem(uint16 itemID, const sol::object& location) -> bool
 
     if (location != sol::lua_nil)
     {
-        uint8 locationID = LOC_INVENTORY;
+        uint8 locationID = static_cast<uint8>(xi::Container::Inventory);
 
         locationID = location.as<uint8>();
-        locationID = (locationID < CONTAINER_ID::MAX_CONTAINER_ID ? locationID : (uint8)LOC_INVENTORY);
+        locationID = (locationID < MAX_CONTAINER_ID ? locationID : static_cast<uint8>(xi::Container::Inventory));
 
-        return PChar->getStorage(locationID)->SearchItem(itemID) != ERROR_SLOTID;
+        return PChar->getStorage(static_cast<xi::Container>(locationID))->SearchItem(itemID) != ERROR_SLOTID;
     }
 
     return charutils::HasItem(PChar, itemID);
@@ -4586,7 +4586,7 @@ auto CLuaBaseEntity::addItem(sol::variadic_args va) const -> CItem*
             quantity = table.get<int32>("quantity");
         }
 
-        while (PChar->getStorage(LOC_INVENTORY)->GetFreeSlotsCount() != 0 && quantity > 0)
+        while (PChar->getStorage(xi::Container::Inventory)->GetFreeSlotsCount() != 0 && quantity > 0)
         {
             auto PItem = xi::items::spawn(id);
             if (PItem == nullptr)
@@ -4647,12 +4647,12 @@ auto CLuaBaseEntity::addItem(sol::variadic_args va) const -> CItem*
                 break;
             }
 
-            SlotID = transaction->give(LOC_INVENTORY, std::move(PItem), Silence(silent)).value_or(ERROR_SLOTID);
+            SlotID = transaction->give(xi::Container::Inventory, std::move(PItem), Silence(silent)).value_or(ERROR_SLOTID);
             if (SlotID == ERROR_SLOTID || !transaction->commit())
             {
                 break;
             }
-            AddedItem = PChar->getStorage(LOC_INVENTORY)->GetItem(SlotID);
+            AddedItem = PChar->getStorage(xi::Container::Inventory)->GetItem(SlotID);
         }
     }
     else
@@ -4682,7 +4682,7 @@ auto CLuaBaseEntity::addItem(sol::variadic_args va) const -> CItem*
             }
         }
 
-        while (PChar->getStorage(LOC_INVENTORY)->GetFreeSlotsCount() != 0 && quantity > 0)
+        while (PChar->getStorage(xi::Container::Inventory)->GetFreeSlotsCount() != 0 && quantity > 0)
         {
             auto PItem = xi::items::spawn(itemID);
             if (PItem == nullptr)
@@ -4700,14 +4700,14 @@ auto CLuaBaseEntity::addItem(sol::variadic_args va) const -> CItem*
                 break;
             }
 
-            SlotID = transaction->give(LOC_INVENTORY, std::move(PItem), Silence(silence)).value_or(ERROR_SLOTID);
+            SlotID = transaction->give(xi::Container::Inventory, std::move(PItem), Silence(silence)).value_or(ERROR_SLOTID);
 
             // Paranoid check
             if (SlotID == ERROR_SLOTID || !transaction->commit())
             {
                 break;
             }
-            AddedItem = PChar->getStorage(LOC_INVENTORY)->GetItem(SlotID);
+            AddedItem = PChar->getStorage(xi::Container::Inventory)->GetItem(SlotID);
         }
     }
 
@@ -4729,7 +4729,7 @@ auto CLuaBaseEntity::delItem(uint16 itemID, int32 quantity, const sol::object& c
         return false;
     }
 
-    uint8 location = containerID.get_type() == sol::type::number ? containerID.as<uint8>() : 0;
+    const auto location = static_cast<xi::Container>(containerID.get_type() == sol::type::number ? containerID.as<uint8>() : 0);
 
     auto* PChar    = static_cast<CCharEntity*>(m_PBaseEntity);
     auto* PStorage = PChar->getStorage(location);
@@ -4773,16 +4773,16 @@ auto CLuaBaseEntity::delItemAt(const uint16 itemID, const int32 quantity, uint8 
         return false;
     }
 
-    if (containerId >= CONTAINER_ID::MAX_CONTAINER_ID)
+    if (containerId >= MAX_CONTAINER_ID)
     {
         ShowWarning("Lua::delItemAt: Attempting to delete an item from an invalid slot. Defaulting to main inventory.");
-        containerId = LOC_INVENTORY;
+        containerId = static_cast<uint8>(xi::Container::Inventory);
     }
 
-    if (const auto* PItem = PChar->getStorage(containerId)->GetItem(slotId); PItem && PItem->getID() == itemID)
+    if (const auto* PItem = PChar->getStorage(static_cast<xi::Container>(containerId))->GetItem(slotId); PItem && PItem->getID() == itemID)
     {
         auto transaction = ItemClaimTransaction::start(PChar);
-        if (!transaction || !transaction->take(containerId, slotId, quantity) || !transaction->commit())
+        if (!transaction || !transaction->take(static_cast<xi::Container>(containerId), slotId, quantity) || !transaction->commit())
         {
             ShowErrorFmt("CLuaBaseEntity::delItem: {} kept item in slot {}", PChar->getName(), slotId);
             return false;
@@ -4813,14 +4813,14 @@ auto CLuaBaseEntity::delContainerItems(const sol::object& containerID) -> bool
 
     uint8 location = containerID.get_type() == sol::type::number ? containerID.as<uint8>() : 0;
 
-    if (location >= CONTAINER_ID::MAX_CONTAINER_ID)
+    if (location >= MAX_CONTAINER_ID)
     {
         ShowWarning("Attempting to delete items from an invalid container.");
         return false;
     }
 
     auto* PChar          = static_cast<CCharEntity*>(m_PBaseEntity);
-    auto* PItemContainer = PChar->getStorage(location);
+    auto* PItemContainer = PChar->getStorage(static_cast<xi::Container>(location));
 
     if (!PItemContainer)
     {
@@ -4838,7 +4838,7 @@ auto CLuaBaseEntity::delContainerItems(const sol::object& containerID) -> bool
         {
             // UnequipItem doesn't consider SLOT_MAIN removing SLOT_SUB, so we say to Equip nothing in this equipment slot
             // this is the same thing that equipset_set packet does to remove a slot
-            charutils::EquipItem(PChar, 0, equipmentSlot, 0);
+            charutils::EquipItem(PChar, 0, equipmentSlot, xi::Container::Inventory);
         }
     }
 
@@ -4850,7 +4850,7 @@ auto CLuaBaseEntity::delContainerItems(const sol::object& containerID) -> bool
         {
             // one transaction per slot, so a slot that refuses to empty does not strand the rest
             auto transaction = ItemClaimTransaction::start(PChar);
-            if (!transaction || !transaction->take(location, i, PItem->getQuantity()) || !transaction->commit())
+            if (!transaction || !transaction->take(static_cast<xi::Container>(location), i, PItem->getQuantity()) || !transaction->commit())
             {
                 ShowErrorFmt("CLuaBaseEntity::delContainerItems: {} kept item in slot {}", PChar->getName(), i);
             }
@@ -4878,7 +4878,7 @@ auto CLuaBaseEntity::addUsedItem(uint16 itemID) -> bool
     auto* PChar  = static_cast<CCharEntity*>(m_PBaseEntity);
     uint8 SlotID = ERROR_SLOTID;
 
-    if (PChar->getStorage(LOC_INVENTORY)->GetFreeSlotsCount() != 0)
+    if (PChar->getStorage(xi::Container::Inventory)->GetFreeSlotsCount() != 0)
     {
         auto PItem = xi::items::spawn(itemID);
         if (PItem == nullptr)
@@ -4898,7 +4898,7 @@ auto CLuaBaseEntity::addUsedItem(uint16 itemID) -> bool
             auto transaction = ItemClaimTransaction::start(PChar);
             if (transaction)
             {
-                SlotID = transaction->give(LOC_INVENTORY, std::move(PItem)).value_or(ERROR_SLOTID);
+                SlotID = transaction->give(xi::Container::Inventory, std::move(PItem)).value_or(ERROR_SLOTID);
                 if (SlotID != ERROR_SLOTID && !transaction->commit())
                 {
                     SlotID = ERROR_SLOTID;
@@ -4920,10 +4920,10 @@ auto CLuaBaseEntity::addUsedItem(uint16 itemID) -> bool
 auto CLuaBaseEntity::getWornUses(const uint16 itemID) const -> uint8
 {
     const auto* PChar  = static_cast<CCharEntity*>(m_PBaseEntity);
-    const uint8 slotID = PChar->getStorage(LOC_INVENTORY)->SearchItem(itemID);
+    const uint8 slotID = PChar->getStorage(xi::Container::Inventory)->SearchItem(itemID);
     if (slotID != ERROR_SLOTID)
     {
-        CItem* PItem = PChar->getStorage(LOC_INVENTORY)->GetItem(slotID);
+        CItem* PItem = PChar->getStorage(xi::Container::Inventory)->GetItem(slotID);
         if (PItem != nullptr)
         {
             return PItem->exdata<Exdata::WornItem>().UseCount;
@@ -4943,10 +4943,10 @@ auto CLuaBaseEntity::getWornUses(const uint16 itemID) const -> uint8
 auto CLuaBaseEntity::incrementItemWear(const uint16 itemID) const -> uint8
 {
     const auto* PChar  = static_cast<CCharEntity*>(m_PBaseEntity);
-    const uint8 slotID = PChar->getStorage(LOC_INVENTORY)->SearchItem(itemID);
+    const uint8 slotID = PChar->getStorage(xi::Container::Inventory)->SearchItem(itemID);
     if (slotID != ERROR_SLOTID)
     {
-        CItem* PItem = PChar->getStorage(LOC_INVENTORY)->GetItem(slotID);
+        CItem* PItem = PChar->getStorage(xi::Container::Inventory)->GetItem(slotID);
         if (PItem == nullptr)
         {
             return 0;
@@ -4982,7 +4982,7 @@ auto CLuaBaseEntity::addTempItem(uint16 itemID, const sol::object& arg1) -> bool
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    if (PChar->getStorage(LOC_TEMPITEMS)->GetFreeSlotsCount() != 0 && quantity != 0)
+    if (PChar->getStorage(xi::Container::TempItems)->GetFreeSlotsCount() != 0 && quantity != 0)
     {
         auto PItem = xi::items::spawn(itemID);
         if (PItem == nullptr)
@@ -4996,7 +4996,7 @@ auto CLuaBaseEntity::addTempItem(uint16 itemID, const sol::object& arg1) -> bool
             auto transaction = ItemClaimTransaction::start(PChar);
             if (transaction)
             {
-                SlotID = transaction->give(LOC_TEMPITEMS, std::move(PItem)).value_or(ERROR_SLOTID);
+                SlotID = transaction->give(xi::Container::TempItems, std::move(PItem)).value_or(ERROR_SLOTID);
                 if (SlotID != ERROR_SLOTID && !transaction->commit())
                 {
                     SlotID = ERROR_SLOTID;
@@ -5026,23 +5026,23 @@ auto CLuaBaseEntity::findItem(uint16 itemID, const sol::object& location) -> CIt
     // Look in a specific container
     if (location != sol::lua_nil)
     {
-        uint8 locationID = LOC_INVENTORY;
+        uint8 locationID = static_cast<uint8>(xi::Container::Inventory);
 
         locationID = location.as<uint8>();
-        locationID = (locationID < CONTAINER_ID::MAX_CONTAINER_ID ? locationID : (uint8)LOC_INVENTORY);
+        locationID = (locationID < MAX_CONTAINER_ID ? locationID : static_cast<uint8>(xi::Container::Inventory));
 
-        if (auto slot = PChar->getStorage(locationID)->SearchItem(itemID); slot != ERROR_SLOTID)
+        if (auto slot = PChar->getStorage(static_cast<xi::Container>(locationID))->SearchItem(itemID); slot != ERROR_SLOTID)
         {
-            return PChar->getStorage(locationID)->GetItem(slot);
+            return PChar->getStorage(static_cast<xi::Container>(locationID))->GetItem(slot);
         }
     }
     else // Look in all containers
     {
-        for (uint8 i = 0; i < CONTAINER_ID::MAX_CONTAINER_ID; ++i)
+        for (uint8 i = 0; i < MAX_CONTAINER_ID; ++i)
         {
-            if (auto slot = PChar->getStorage(i)->SearchItem(itemID); slot != ERROR_SLOTID)
+            if (auto slot = PChar->getStorage(static_cast<xi::Container>(i))->SearchItem(itemID); slot != ERROR_SLOTID)
             {
-                auto* item = PChar->getStorage(i)->GetItem(slot);
+                auto* item = PChar->getStorage(static_cast<xi::Container>(i))->GetItem(slot);
                 if (item && item->getID() == itemID)
                 {
                     return item;
@@ -5074,16 +5074,16 @@ auto CLuaBaseEntity::findItems(uint16 itemID, const sol::object& location) -> so
     // Look in a specific container
     if (location != sol::lua_nil)
     {
-        uint8 locationID = LOC_INVENTORY;
+        uint8 locationID = static_cast<uint8>(xi::Container::Inventory);
 
         locationID = location.as<uint8>();
-        locationID = (locationID < CONTAINER_ID::MAX_CONTAINER_ID ? locationID : (uint8)LOC_INVENTORY);
+        locationID = (locationID < MAX_CONTAINER_ID ? locationID : static_cast<uint8>(xi::Container::Inventory));
 
-        if (const auto slots = PChar->getStorage(locationID)->SearchItems(itemID); !slots.empty())
+        if (const auto slots = PChar->getStorage(static_cast<xi::Container>(locationID))->SearchItems(itemID); !slots.empty())
         {
             for (const auto slot : slots)
             {
-                if (auto* item = PChar->getStorage(locationID)->GetItem(slot))
+                if (auto* item = PChar->getStorage(static_cast<xi::Container>(locationID))->GetItem(slot))
                 {
                     table.add(item);
                 }
@@ -5092,13 +5092,13 @@ auto CLuaBaseEntity::findItems(uint16 itemID, const sol::object& location) -> so
     }
     else // Look in all containers
     {
-        for (uint8 i = 0; i < CONTAINER_ID::MAX_CONTAINER_ID; ++i)
+        for (uint8 i = 0; i < MAX_CONTAINER_ID; ++i)
         {
-            if (auto slots = PChar->getStorage(i)->SearchItems(itemID); !slots.empty())
+            if (auto slots = PChar->getStorage(static_cast<xi::Container>(i))->SearchItems(itemID); !slots.empty())
             {
                 for (const auto slot : slots)
                 {
-                    if (auto* item = PChar->getStorage(i)->GetItem(slot))
+                    if (auto* item = PChar->getStorage(static_cast<xi::Container>(i))->GetItem(slot))
                     {
                         table.add(item);
                     }
@@ -5126,14 +5126,14 @@ auto CLuaBaseEntity::getItems(const sol::object& location) -> sol::table
         return table;
     }
 
-    uint8 locationId = LOC_INVENTORY;
+    uint8 locationId = static_cast<uint8>(xi::Container::Inventory);
     if (location != sol::lua_nil && location.get_type() == sol::type::number)
     {
         locationId = location.as<uint8>();
-        locationId = (locationId < CONTAINER_ID::MAX_CONTAINER_ID ? locationId : static_cast<uint8>(LOC_INVENTORY));
+        locationId = (locationId < MAX_CONTAINER_ID ? locationId : static_cast<uint8>(xi::Container::Inventory));
     }
 
-    auto* PContainer = PChar->getStorage(locationId);
+    auto* PContainer = PChar->getStorage(static_cast<xi::Container>(locationId));
     PContainer->ForEachItem(
         [&](CItem* PItem)
         {
@@ -5326,7 +5326,7 @@ auto CLuaBaseEntity::addLinkpearl(const std::string& lsname, bool equip) -> bool
         return false;
     }
 
-    const uint8 slotID = transaction->give(LOC_INVENTORY, std::move(PItem)).value_or(ERROR_SLOTID);
+    const uint8 slotID = transaction->give(xi::Container::Inventory, std::move(PItem)).value_or(ERROR_SLOTID);
     if (slotID == ERROR_SLOTID || !transaction->commit())
     {
         return false;
@@ -5334,7 +5334,7 @@ auto CLuaBaseEntity::addLinkpearl(const std::string& lsname, bool equip) -> bool
 
     if (equip)
     {
-        auto* PInserted = static_cast<CItemLinkshell*>(PChar->getStorage(LOC_INVENTORY)->GetItem(slotID));
+        auto* PInserted = static_cast<CItemLinkshell*>(PChar->getStorage(xi::Container::Inventory)->GetItem(slotID));
         linkshell::AddOnlineMember(PChar, PInserted, 2);
         if (!PChar->bindEquip(SLOT_LINK2, PInserted))
         {
@@ -5345,7 +5345,7 @@ auto CLuaBaseEntity::addLinkpearl(const std::string& lsname, bool equip) -> bool
         PChar->pushPacket<GP_SERV_COMMAND_ITEM_LIST>(PInserted, ItemLockFlg::Linkshell);
         charutils::SaveCharEquip(PChar);
         PChar->pushPacket<GP_SERV_COMMAND_GROUP_COMLINK>(PChar, PInserted->GetLSID());
-        PChar->pushPacket<GP_SERV_COMMAND_ITEM_ATTR>(PInserted, LOC_INVENTORY, PInserted->getSlotID());
+        PChar->pushPacket<GP_SERV_COMMAND_ITEM_ATTR>(PInserted, xi::Container::Inventory, PInserted->getSlotID());
         PChar->pushPacket<GP_SERV_COMMAND_ITEM_SAME>(PChar);
         charutils::LoadInventory(PChar);
     }
@@ -5368,7 +5368,7 @@ auto CLuaBaseEntity::getContainerSize(uint8 locationID) -> uint8
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    const auto* PStorage = PChar->getStorage(locationID);
+    const auto* PStorage = PChar->getStorage(static_cast<xi::Container>(locationID));
     return PStorage ? PStorage->GetSize() : 0;
 }
 
@@ -5387,11 +5387,11 @@ void CLuaBaseEntity::changeContainerSize(uint8 locationID, int8 newSize)
         return;
     }
 
-    if (locationID < CONTAINER_ID::MAX_CONTAINER_ID)
+    if (locationID < MAX_CONTAINER_ID)
     {
         auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-        PChar->getStorage(locationID)->AddBuff(newSize);
+        PChar->getStorage(static_cast<xi::Container>(locationID))->AddBuff(newSize);
         PChar->pushPacket<GP_SERV_COMMAND_ITEM_MAX>(PChar);
         charutils::SaveCharInventoryCapacity(PChar);
     }
@@ -5416,7 +5416,7 @@ auto CLuaBaseEntity::getFreeSlotsCount(const sol::object& locID) -> uint8
         return 0;
     }
 
-    uint8 locationID = (locID != sol::lua_nil) ? locID.as<CONTAINER_ID>() : LOC_INVENTORY;
+    const auto locationID = (locID != sol::lua_nil) ? locID.as<xi::Container>() : xi::Container::Inventory;
 
     const auto* PStorage = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(locationID);
     return PStorage ? PStorage->GetFreeSlotsCount() : 0;
@@ -5574,8 +5574,8 @@ void CLuaBaseEntity::equipItem(const uint16 itemID, const sol::object& container
         return;
     }
 
-    auto*       PChar       = static_cast<CCharEntity*>(m_PBaseEntity);
-    const uint8 containerID = container.is<uint8>() ? container.as<uint8>() : static_cast<uint8>(LOC_INVENTORY);
+    auto*      PChar       = static_cast<CCharEntity*>(m_PBaseEntity);
+    const auto containerID = container.is<uint8>() ? static_cast<xi::Container>(container.as<uint8>()) : xi::Container::Inventory;
 
     if (!PChar->getStorage(containerID))
     {
@@ -5649,11 +5649,11 @@ void CLuaBaseEntity::lockEquipSlot(uint8 slot)
 
     auto* PChar = static_cast<CCharEntity*>(m_PBaseEntity);
 
-    charutils::EquipItem(PChar, 0, slot, LOC_INVENTORY);
+    charutils::EquipItem(PChar, 0, slot, xi::Container::Inventory);
 
     PChar->m_EquipBlock |= 1 << slot;
     PChar->pushPacket<GP_SERV_COMMAND_GRAP_LIST>(PChar);
-    PChar->pushPacket<GP_SERV_COMMAND_EQUIP_LIST>(0, static_cast<SLOTTYPE>(slot), LOC_INVENTORY);
+    PChar->pushPacket<GP_SERV_COMMAND_EQUIP_LIST>(0, static_cast<SLOTTYPE>(slot), xi::Container::Inventory);
     PChar->pushPacket<GP_SERV_COMMAND_JOB_INFO>(PChar);
     PChar->updatemask |= UPDATE_LOOK;
 }
@@ -5823,7 +5823,7 @@ auto CLuaBaseEntity::getStorageItem(uint8 container, uint8 slotID, uint8 equipID
 
     if (equipID == 255)
     {
-        if (auto* PStorage = PChar->getStorage(container))
+        if (auto* PStorage = PChar->getStorage(static_cast<xi::Container>(container)))
         {
             PItem = PStorage->GetItem(slotID);
         }
@@ -5859,14 +5859,14 @@ auto CLuaBaseEntity::storeWithPorterMoogle(uint16 slipId, const sol::table& extr
     }
 
     auto* PChar      = static_cast<CCharEntity*>(m_PBaseEntity);
-    auto  slipSlotId = PChar->getStorage(LOC_INVENTORY)->SearchItem(slipId);
+    auto  slipSlotId = PChar->getStorage(xi::Container::Inventory)->SearchItem(slipId);
 
     if (slipSlotId == 255)
     {
         return storeFailed;
     }
 
-    auto* slip = PChar->getStorage(LOC_INVENTORY)->GetItem(slipSlotId);
+    auto* slip = PChar->getStorage(xi::Container::Inventory)->GetItem(slipSlotId);
 
     if (slip == nullptr)
     {
@@ -5962,14 +5962,14 @@ auto CLuaBaseEntity::getRetrievableItemsForSlip(const uint16 slipId) const -> so
 {
     if (const auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
     {
-        const auto slipSlotId = PChar->getStorage(LOC_INVENTORY)->SearchItem(slipId);
+        const auto slipSlotId = PChar->getStorage(xi::Container::Inventory)->SearchItem(slipId);
 
         if (slipSlotId == ERROR_SLOTID)
         {
             return {};
         }
 
-        auto* slip = PChar->getStorage(LOC_INVENTORY)->GetItem(slipSlotId);
+        auto* slip = PChar->getStorage(xi::Container::Inventory)->GetItem(slipSlotId);
 
         if (slip == nullptr)
         {
@@ -6006,14 +6006,14 @@ void CLuaBaseEntity::retrieveItemFromSlip(uint16 slipId, uint16 itemId, uint16 e
     }
 
     auto* PChar      = static_cast<CCharEntity*>(m_PBaseEntity);
-    auto  slipSlotId = PChar->getStorage(LOC_INVENTORY)->SearchItem(slipId);
+    auto  slipSlotId = PChar->getStorage(xi::Container::Inventory)->SearchItem(slipId);
 
     if (slipSlotId == 255)
     {
         return;
     }
 
-    auto* slip = PChar->getStorage(LOC_INVENTORY)->GetItem(slipSlotId);
+    auto* slip = PChar->getStorage(xi::Container::Inventory)->GetItem(slipSlotId);
 
     if (slip == nullptr)
     {
@@ -6031,7 +6031,7 @@ void CLuaBaseEntity::retrieveItemFromSlip(uint16 slipId, uint16 itemId, uint16 e
     item->setQuantity(1);
 
     auto transaction = ItemClaimTransaction::start(PChar);
-    if (!transaction || !transaction->give(LOC_INVENTORY, std::move(item)))
+    if (!transaction || !transaction->give(xi::Container::Inventory, std::move(item)))
     {
         ShowErrorFmt("retrieveItemFromSlip: {} could not receive item {}, leaving it on the slip", PChar->getName(), itemId);
         return;
@@ -7947,12 +7947,12 @@ auto CLuaBaseEntity::getMonstrosityExits(const xi::ZoneId zoneId) -> sol::table
  *  Example : if player:getTitle()) == xi.title.FAKE_MOUSTACHED_INVESTIGATOR then
  ************************************************************************/
 
-auto CLuaBaseEntity::getTitle() -> uint16
+auto CLuaBaseEntity::getTitle() -> xi::Title
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
         ShowWarning("Invalid entity type calling function (%s).", m_PBaseEntity->getName());
-        return 0;
+        return xi::Title::None;
     }
 
     return static_cast<CCharEntity*>(m_PBaseEntity)->profile.title;
@@ -7964,7 +7964,7 @@ auto CLuaBaseEntity::getTitle() -> uint16
  *  Example : if player:hasTitle(xi.title.AWESOME_SAUCE) then
  ************************************************************************/
 
-auto CLuaBaseEntity::hasTitle(uint16 titleID) -> bool
+auto CLuaBaseEntity::hasTitle(xi::Title titleID) -> bool
 {
     if (m_PBaseEntity->objtype != TYPE_PC)
     {
@@ -7982,7 +7982,7 @@ auto CLuaBaseEntity::hasTitle(uint16 titleID) -> bool
  *  Notes   : Use setTitle to both change and add
  ************************************************************************/
 
-void CLuaBaseEntity::addTitle(uint16 titleID)
+void CLuaBaseEntity::addTitle(xi::Title titleID)
 {
     if (!(m_PBaseEntity->objtype & TYPE_PC))
     {
@@ -8002,10 +8002,10 @@ void CLuaBaseEntity::addTitle(uint16 titleID)
 /************************************************************************
  *  Function: setTitle()
  *  Purpose : Updates the player's current title and adds to their profile
- *  Example : player:setTitle(xi.title.SOB_SUPERHERO)
+ *  Example : player:setTitle(xi.title.SOB_SUPER_HERO)
  ************************************************************************/
 
-void CLuaBaseEntity::setTitle(uint16 titleID)
+void CLuaBaseEntity::setTitle(xi::Title titleID)
 {
     if (!(m_PBaseEntity->objtype & TYPE_PC))
     {
@@ -8023,7 +8023,7 @@ void CLuaBaseEntity::setTitle(uint16 titleID)
  *  Example : player:delTitle(xi.title.FODDERCHIEF_FLAYER)
  ************************************************************************/
 
-void CLuaBaseEntity::delTitle(uint16 titleID)
+void CLuaBaseEntity::delTitle(xi::Title titleID)
 {
     if (!(m_PBaseEntity->objtype & TYPE_PC))
     {
@@ -8037,7 +8037,7 @@ void CLuaBaseEntity::delTitle(uint16 titleID)
     {
         if (PChar->profile.title == titleID)
         {
-            PChar->profile.title = 0;
+            PChar->profile.title = xi::Title::None;
         }
 
         PChar->pushPacket<GP_SERV_COMMAND_CLISTATUS>(PChar);
@@ -10007,7 +10007,7 @@ auto CLuaBaseEntity::getGil() -> uint32
 {
     if (m_PBaseEntity->objtype == TYPE_PC)
     {
-        CItem* item = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(LOC_INVENTORY)->GetItem(0);
+        CItem* item = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(xi::Container::Inventory)->GetItem(0);
 
         if (item == nullptr) // Player has no money
         {
@@ -10064,7 +10064,7 @@ void CLuaBaseEntity::addGil(int32 gil)
         return;
     }
 
-    CItem* item = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(LOC_INVENTORY)->GetItem(0);
+    CItem* item = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(xi::Container::Inventory)->GetItem(0);
 
     if (item == nullptr || !item->isType(ITEM_CURRENCY))
     {
@@ -10096,7 +10096,7 @@ void CLuaBaseEntity::setGil(int32 amount)
         return;
     }
 
-    CItem* item = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(LOC_INVENTORY)->GetItem(0);
+    CItem* item = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(xi::Container::Inventory)->GetItem(0);
 
     if (item == nullptr || !item->isType(ITEM_CURRENCY))
     {
@@ -10137,7 +10137,7 @@ auto CLuaBaseEntity::delGil(int32 gil) -> bool
 
     bool result = false;
 
-    CItem* PItem = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(LOC_INVENTORY)->GetItem(0);
+    CItem* PItem = static_cast<CCharEntity*>(m_PBaseEntity)->getStorage(xi::Container::Inventory)->GetItem(0);
 
     if (PItem != nullptr && PItem->isType(ITEM_CURRENCY) && (int32)PItem->getQuantity() >= gil)
     {
@@ -11949,15 +11949,15 @@ auto CLuaBaseEntity::getEntitiesInRange(CLuaBaseEntity* PLuaEntityTarget, sol::v
     }
 
     auto findFlags    = va[3].is<uint8>() ? va[3].as<uint8>() : 0;
-    auto validTargets = va[4].is<uint16>() ? va[4].as<uint16>() : 0;
+    auto validTargets = va[4].is<uint16>() ? static_cast<xi::TargetType>(va[4].as<uint16>()) : xi::TargetType::None;
 
     // Mob buff abilities also hit monster's pets
-    if (validTargets & TARGET_SELF)
+    if ((validTargets & xi::TargetType::Self) != xi::TargetType::None)
     {
         findFlags |= FINDFLAGS_PET;
     }
 
-    if ((validTargets & TARGET_IGNORE_BATTLEID) == TARGET_IGNORE_BATTLEID)
+    if ((validTargets & xi::TargetType::IgnoreBattleid) == xi::TargetType::IgnoreBattleid)
     {
         findFlags |= FINDFLAGS_IGNORE_BATTLEID;
     }
@@ -13742,11 +13742,11 @@ auto CLuaBaseEntity::checkImbuedItems() -> bool
 
     auto* PChar{ static_cast<CCharEntity*>(m_PBaseEntity) };
 
-    for (uint8 LocID = 0; LocID < CONTAINER_ID::MAX_CONTAINER_ID; ++LocID)
+    for (uint8 LocID = 0; LocID < MAX_CONTAINER_ID; ++LocID)
     {
         bool found = false;
         // clang-format off
-        PChar->getStorage(LocID)->ForEachItem([&found](CItem* PItem)
+        PChar->getStorage(static_cast<xi::Container>(LocID))->ForEachItem([&found](CItem* PItem)
         {
             if (PItem->getID() >= 5365 && PItem->getID() <= 5384)
             {
@@ -17121,7 +17121,7 @@ void CLuaBaseEntity::registerChocobo(const sol::table& chocobo) const
         userData.registeredWeather     = byteField("weather");
         userData.silksSpeedBonus       = byteField("silksSpeedBonus");
 
-        PChar->m_mountId = 0;
+        PChar->m_mountId = xi::Mount::Chocobo;
         saveChocoboUserData(PChar);
         return;
     }
@@ -19667,7 +19667,7 @@ void CLuaBaseEntity::useMobAbility(sol::variadic_args va)
             {
                 PEntity->PAI->MobSkill(PEntity->entityId(), skillid, castTimeOverride);
             }
-            else if (PMobSkill->getValidTargets() & TARGET_ENEMY)
+            else if ((PMobSkill->getValidTargets() & xi::TargetType::Enemy) != xi::TargetType::None)
             {
                 auto defaultTarget = mobObj->GetBattleTarget();
                 if (defaultTarget)
@@ -19680,7 +19680,7 @@ void CLuaBaseEntity::useMobAbility(sol::variadic_args va)
                     }
                 }
             }
-            else if (PMobSkill->getValidTargets() & TARGET_SELF)
+            else if ((PMobSkill->getValidTargets() & xi::TargetType::Self) != xi::TargetType::None)
             {
                 PEntity->PAI->MobSkill(PEntity->entityId(), skillid, castTimeOverride);
             }
@@ -20706,11 +20706,11 @@ void CLuaBaseEntity::setMannequinPose(uint16 itemID, uint8 race, uint8 pose)
     // Find the item in the player inventory and update the extra values
     if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
     {
-        for (uint8 i = 0; i < CONTAINER_ID::MAX_CONTAINER_ID; ++i)
+        for (uint8 i = 0; i < MAX_CONTAINER_ID; ++i)
         {
-            if (auto slot = PChar->getStorage(i)->SearchItem(itemID); slot != ERROR_SLOTID)
+            if (auto slot = PChar->getStorage(static_cast<xi::Container>(i))->SearchItem(itemID); slot != ERROR_SLOTID)
             {
-                auto* item = PChar->getStorage(i)->GetItem(slot);
+                auto* item = PChar->getStorage(static_cast<xi::Container>(i))->GetItem(slot);
                 if (item && item->getID() == itemID && item->isMannequin())
                 {
                     if (auto* PMannequin = dynamic_cast<CItemFurnishing*>(item))
@@ -20742,11 +20742,11 @@ auto CLuaBaseEntity::getMannequinPose(uint16 itemID) -> uint8
 
     if (auto* PChar = dynamic_cast<CCharEntity*>(m_PBaseEntity))
     {
-        for (uint8 i = 0; i < CONTAINER_ID::MAX_CONTAINER_ID; ++i)
+        for (uint8 i = 0; i < MAX_CONTAINER_ID; ++i)
         {
-            if (auto slot = PChar->getStorage(i)->SearchItem(itemID); slot != ERROR_SLOTID)
+            if (auto slot = PChar->getStorage(static_cast<xi::Container>(i))->SearchItem(itemID); slot != ERROR_SLOTID)
             {
-                auto* item = PChar->getStorage(i)->GetItem(slot);
+                auto* item = PChar->getStorage(static_cast<xi::Container>(i))->GetItem(slot);
                 if (item && item->getID() == itemID && item->isMannequin())
                 {
                     if (auto* PMannequin = dynamic_cast<CItemFurnishing*>(item))

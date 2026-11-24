@@ -686,7 +686,7 @@ auto CMobEntity::GetRangedAttackRange() -> float
     return rangedAttackRange > 0 ? static_cast<float>(rangedAttackRange) : 14.0f;
 }
 
-auto CMobEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) -> bool
+auto CMobEntity::ValidTarget(CBattleEntity* PInitiator, xi::TargetType targetFlags) -> bool
 {
     TracyZoneScopedN("CMobEntity::ValidTarget");
 
@@ -700,17 +700,17 @@ auto CMobEntity::ValidTarget(CBattleEntity* PInitiator, uint16 targetFlags) -> b
         return true;
     }
 
-    if (targetFlags & TARGET_PLAYER_DEAD && ((m_Behavior & xi::Behavior::Raisable) != xi::Behavior::None) && isDead())
+    if ((targetFlags & xi::TargetType::PlayerDead) != xi::TargetType::None && ((m_Behavior & xi::Behavior::Raisable) != xi::Behavior::None) && isDead())
     {
         return true;
     }
 
-    if ((targetFlags & TARGET_PLAYER) && allegiance == PInitiator->allegiance && !((m_Behavior & xi::Behavior::NoAssist) != xi::Behavior::None) && !isCharmed)
+    if ((targetFlags & xi::TargetType::Player) != xi::TargetType::None && allegiance == PInitiator->allegiance && !((m_Behavior & xi::Behavior::NoAssist) != xi::Behavior::None) && !isCharmed)
     {
         return true;
     }
 
-    if (targetFlags & TARGET_NPC)
+    if ((targetFlags & xi::TargetType::Npc) != xi::TargetType::None)
     {
         if (allegiance == PInitiator->allegiance && !((m_Behavior & xi::Behavior::NoAssist) != xi::Behavior::None) && !isCharmed)
         {
@@ -733,6 +733,8 @@ void CMobEntity::Spawn()
     }
 
     CBattleEntity::Spawn();
+
+    m_FishingRespawnDuration = timer::duration::zero();
 
     m_giveExp        = true;
     m_HiPCLvl        = 0;
@@ -1423,6 +1425,15 @@ void CMobEntity::OnDeathTimer()
     }
 }
 
+void CMobEntity::StartFishingRespawnCooldown()
+{
+    if (m_FishingRespawnDuration > timer::duration::zero())
+    {
+        m_FishingRespawnAt       = timer::now() + m_FishingRespawnDuration;
+        m_FishingRespawnDuration = timer::duration::zero();
+    }
+}
+
 void CMobEntity::OnDespawn(CDespawnState& /*unused*/)
 {
     TracyZoneScoped;
@@ -1435,6 +1446,7 @@ void CMobEntity::OnDespawn(CDespawnState& /*unused*/)
         PMobPet->SetDespawnTime(1ms);
     }
 
+    StartFishingRespawnCooldown();
     luautils::OnMobDespawn(this);
     PAI->EventHandler.triggerListener("DESPAWN", this);
 }
@@ -1442,6 +1454,8 @@ void CMobEntity::OnDespawn(CDespawnState& /*unused*/)
 void CMobEntity::Die()
 {
     TracyZoneScopedN("CMobEntity::Die");
+
+    StartFishingRespawnCooldown();
 
     if (PBattlefield != nullptr)
     {
@@ -1540,7 +1554,7 @@ void CMobEntity::OnCastInterrupted(CMagicState& state, action_t& action, MsgBasi
     }
 }
 
-auto CMobEntity::OnAttack(CAttackState& state, action_t& action) -> bool
+auto CMobEntity::OnAttack(CBattleEntity* PTarget, action_t& action) -> bool
 {
     TracyZoneScopedN("CMobEntity::OnAttack");
 
@@ -1552,7 +1566,7 @@ auto CMobEntity::OnAttack(CAttackState& state, action_t& action) -> bool
     }
     else
     {
-        return CBattleEntity::OnAttack(state, action);
+        return CBattleEntity::OnAttack(PTarget, action);
     }
 }
 
