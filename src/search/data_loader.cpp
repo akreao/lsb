@@ -836,7 +836,7 @@ auto CDataLoader::GetLinkshellList(uint32 LinkshellID) const -> std::vector<Sear
     std::vector<SearchEntity> LinkshellList;
 
     auto rset = db::preparedStmt("SELECT charid, partyid, charname, pos_zone, nation, rank_sandoria, rank_bastok, rank_windurst, race, settings, mjob, sjob, "
-                                 "mlvl, slvl, linkshellid1, linkshellid2, "
+                                 "mlvl, slvl, languages, seacom_type, linkshellid1, linkshellid2, "
                                  "linkshellrank1, linkshellrank2, disconnecting "
                                  "FROM accounts_sessions "
                                  "LEFT JOIN accounts_parties USING (charid) "
@@ -882,6 +882,8 @@ auto CDataLoader::GetLinkshellList(uint32 LinkshellID) const -> std::vector<Sear
                 break;
         }
 
+        player.languages      = rset->get<uint8>("languages");
+        player.seacom_type    = rset->get<uint8>("seacom_type");
         player.linkshellid1   = rset->get<uint32>("linkshellid1");
         player.linkshellid2   = rset->get<uint32>("linkshellid2");
         player.linkshellrank1 = rset->get<uint8>("linkshellrank1");
@@ -897,6 +899,10 @@ auto CDataLoader::GetLinkshellList(uint32 LinkshellID) const -> std::vector<Sear
         if (partyid == player.id)
         {
             player.flags1 |= 0x0008;
+        }
+        if (player.seacom_type)
+        {
+            player.flags1 |= 0x0010;
         }
         if (playerSettings.AwayFlg)
         {
