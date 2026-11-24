@@ -25,6 +25,7 @@
 #include "enums/content.h"
 #include "enums/open_status.h"
 #include "irc/presence_manager.h"
+#include "profile/characters.h"
 #include "protocol/profile/c2s/0x0405_change_my_status.h"
 #include "protocol/profile/s2c/0x0405_change_my_status.h"
 #include "protocol/profile/s2c/0x0406_load_my_status.h"
@@ -57,6 +58,7 @@ auto loadMyStatus(const Context& context) -> ProfileAnswer
 {
     const auto status = context.presence.status(context.accountId).value_or(PresenceManager::Status{});
     return ProfileAnswer().add(MyStatus{
+        .ActiveHandleNameNum   = status.handleNum,
         .bCharacterActive      = status.inGame,
         .ActiveCharacterSlot   = status.characterSlot,
         .bReceiveOnlineMessage = status.receiveMessages,
@@ -83,16 +85,17 @@ auto changeMyStatus(const Context& context, const std::span<const uint8> body) -
             return ProfileAnswer(ProfError::Refused);
         }
 
-        // only echoed back, but must be a real character
-        const auto inGame = request->bCharacterFound != 0 && request->ActiveCharacterSlot < characters->size();
-        const auto saved  = context.presence.setStatus(context.accountId,
-                                                       PresenceManager::Status{
-                                                           .openStatus      = openStatusFromWire(request->OpenStat).value_or(current->openStatus),
-                                                           .inGame          = inGame,
-                                                           .characterSlot   = request->ActiveCharacterSlot,
-                                                           .receiveMessages = request->bReceiveOnlineMessage != 0,
-                                                       });
-        if (!saved)
+        // only echoed back, but must be a real character, at its handle's slot as loadCharacterList puts it
+        const auto character = request->ActiveHandleNameNum * handleSlots + request->ActiveCharacterSlot;
+        const auto inGame    = request->bCharacterFound != 0 && request->ActiveCharacterSlot < handleSlots && character < characters->size();
+        const auto status    = PresenceManager::Status{
+            .openStatus      = openStatusFromWire(request->OpenStat).value_or(current->openStatus),
+            .inGame          = inGame,
+            .handleNum       = request->ActiveHandleNameNum,
+            .characterSlot   = request->ActiveCharacterSlot,
+            .receiveMessages = request->bReceiveOnlineMessage != 0,
+        };
+        if (!context.presence.setStatus(context.accountId, status))
         {
             return ProfileAnswer(ProfError::Refused);
         }

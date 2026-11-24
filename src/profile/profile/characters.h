@@ -27,10 +27,15 @@
 #include "common/cbasetypes.h"
 #include "common/types/maybe.h"
 
+#include <cstddef>
 #include <span>
 
 namespace profile
 {
+
+// PlayOnline keeps 8 characters per handle and 64 characters per member, so 8 handles at most
+constexpr std::size_t handleSlots = 8;
+constexpr std::size_t maxHandles  = 8;
 
 auto loadHandleNameList(const Context& context) -> ProfileAnswer;
 auto loadCharacterList(const Context& context) -> ProfileAnswer;
