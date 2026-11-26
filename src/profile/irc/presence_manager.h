@@ -43,7 +43,8 @@ public:
     {
         OpenStatus openStatus{ OpenStatus::Online };
         bool       inGame{};
-        uint8      characterSlot{}; // when in game
+        uint8      handleNum{};     // when in game
+        uint8      characterSlot{}; // when in game, its slot in that handle
         bool       receiveMessages{ true };
     };
 

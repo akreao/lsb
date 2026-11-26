@@ -37,7 +37,17 @@
 namespace profile
 {
 
-// We don't support multiple handles, this returns the first character as the handle name
+namespace
+{
+
+auto handleCount(const std::size_t characterCount) -> std::size_t
+{
+    return std::clamp<std::size_t>((characterCount + handleSlots - 1) / handleSlots, 1, maxHandles);
+}
+
+} // namespace
+
+// one handle per 8 characters, named after its first character
 auto loadHandleNameList(const Context& context) -> ProfileAnswer
 {
     const auto characters = accounts::characters(context.accountId);
@@ -46,22 +56,32 @@ auto loadHandleNameList(const Context& context) -> ProfileAnswer
         return ProfileAnswer(ProfError::Refused);
     }
 
-    auto name = std::string("Player");
-    if (!characters->empty())
+    const auto count   = handleCount(characters->size());
+    auto       handles = std::vector<HandleNameInfo>{};
+    for (std::size_t num = 0; num < count; ++num)
     {
-        name = characters->front().name;
+        auto name = std::string("Player");
+        if (num * handleSlots < characters->size())
+        {
+            name = (*characters)[num * handleSlots].name;
+        }
+
+        auto handle = HandleNameInfo{
+            .Num   = static_cast<uint8>(num),
+            .Order = static_cast<uint8>(num),
+            .Id    = context.accountId,
+        };
+        std::memcpy(handle.Name, name.data(), std::min(name.size(), sizeof(handle.Name) - 1));
+        handles.push_back(handle);
     }
 
-    auto handle = HandleNameInfo{ .Id = context.accountId };
-    std::memcpy(handle.Name, name.data(), std::min(name.size(), sizeof(handle.Name) - 1));
-    return ProfileAnswer().add(ProfCount{ .count = 1 }).add(handle);
+    return ProfileAnswer().add(ProfCount{ .count = static_cast<uint32>(handles.size()) }).addAll(handles);
 }
 
 // the client matches its character by key, else it shows as PlayOnline only
+// a character not in a handle can't be put in game, so each takes the next free slot
 auto loadCharacterList(const Context& context) -> ProfileAnswer
 {
-    constexpr std::size_t handleSlots = 8;
-
     const auto characters = accounts::characters(context.accountId);
     if (!characters)
     {
@@ -76,7 +96,7 @@ auto loadCharacterList(const Context& context) -> ProfileAnswer
         auto info = CharacterInfo{
             .index             = index,
             .Order             = index,
-            .bAttached         = index < handleSlots,
+            .bAttached         = index < handleSlots * maxHandles,
             .ContentsClass     = Content::FFXI,
             .code              = { '0', '0' },
             .ContentsUserSubId = characterKey(character.id),
@@ -85,7 +105,8 @@ auto loadCharacterList(const Context& context) -> ProfileAnswer
 
         if (info.bAttached)
         {
-            info.CharacterIndexOfHandleNameList = index;
+            info.HandleNumber                   = static_cast<uint8>(index / handleSlots);
+            info.CharacterIndexOfHandleNameList = static_cast<uint8>(index % handleSlots);
         }
 
         std::memcpy(info.Name, character.name.data(), std::min(character.name.size(), sizeof(info.Name) - 1));
