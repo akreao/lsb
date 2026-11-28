@@ -226,9 +226,13 @@ GP_SERV_COMMAND_LOGIN::GP_SERV_COMMAND_LOGIN(CCharEntity* PChar, const EventInfo
     }
     else
     {
+        // SendCount is the number of King NPCs (0x00E Flags0 KingFlag) the client waits for before it starts
+        // the zone-in: its fade in, the cutscene, movement and position updates. It gives up after 600 ticks (10s).
+        // We never send KingFlag, so any count above 0 holds every zone-in cutscene for those 10s on a black screen.
+        // TODO: send the cutscene's King NPCs with KingFlag and count them here.
         packet.LoginState      = SAVE_LOGIN_STATE::SAVE_LOGIN_STATE_GAME;
         packet.MyroomMapNumber = 0x01FF;
-        packet.SendCount       = csid > 0 ? 0x01 : 0x00;                             // TODO: SendCount is where we should put the number of King NPCs needed for the upcoming CS
+        packet.SendCount       = 0x00;
         packet.MogZoneFlag     = PChar->loc.zone->CanUseMisc(xi::ZoneMisc::Mogmenu); // flag allows you to use Mog Menu outside Mog House
     }
 
